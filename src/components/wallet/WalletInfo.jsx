@@ -1,13 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { useUSDTBalance } from '../../hooks/useUSDTBalance.js';
+import { USDT_SEPOLIA } from '../../hooks/useToken.js';
 
-const CHAINS = {
-  '0x1':    { name: 'Ethereum',  color: '#627EEA', explorer: 'https://etherscan.io' },
-  '0x38':   { name: 'BNB Chain', color: '#F3BA2F', explorer: 'https://bscscan.com' },
-  '0x89':   { name: 'Polygon',   color: '#8247E5', explorer: 'https://polygonscan.com' },
-  '0xa4b1': { name: 'Arbitrum',  color: '#28A0F0', explorer: 'https://arbiscan.io' },
-  '0xa':    { name: 'Optimism',  color: '#FF0420', explorer: 'https://optimistic.etherscan.io' },
-  '0x2105': { name: 'Base',      color: '#0052FF', explorer: 'https://basescan.org' },
-};
+
 
 function Identicon({ address, size = 28 }) {
   // Simple deterministic color avatar from address
@@ -22,10 +17,20 @@ function Identicon({ address, size = 28 }) {
   );
 }
 
+const CHAINS_WITH_SEPOLIA = {
+  '0x1':      { name: 'Ethereum',         color: '#627EEA', explorer: 'https://etherscan.io' },
+  '0xaa36a7': { name: 'Sepolia ✓',        color: '#10b981', explorer: 'https://sepolia.etherscan.io' },
+  '0x38':     { name: 'BNB Chain',        color: '#F3BA2F', explorer: 'https://bscscan.com' },
+  '0x89':     { name: 'Polygon',          color: '#8247E5', explorer: 'https://polygonscan.com' },
+  '0xa4b1':   { name: 'Arbitrum',         color: '#28A0F0', explorer: 'https://arbiscan.io' },
+  '0xa':      { name: 'Optimism',         color: '#FF0420', explorer: 'https://optimistic.etherscan.io' },
+};
+
 export default function WalletInfo({ address, shortAddress, balance, chainId, chainInfo, onDisconnect, onSwitchChain }) {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef(null);
+  const { balance: usdtBal, onSepolia } = useUSDTBalance();
 
   // Close on outside click
   useEffect(() => {
@@ -42,8 +47,8 @@ export default function WalletInfo({ address, shortAddress, balance, chainId, ch
     }).catch(() => {});
   }
 
-  const chainColor  = CHAINS[chainId]?.color || '#10b981';
-  const explorerUrl = `${CHAINS[chainId]?.explorer || 'https://etherscan.io'}/address/${address}`;
+  const chainColor  = CHAINS_WITH_SEPOLIA[chainId]?.color || '#10b981';
+  const explorerUrl = `${CHAINS_WITH_SEPOLIA[chainId]?.explorer || 'https://etherscan.io'}/address/${address}`;
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -102,25 +107,41 @@ export default function WalletInfo({ address, shortAddress, balance, chainId, ch
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.2rem' }}>
                   <span style={{ width: 7, height: 7, borderRadius: '50%', background: chainColor, flexShrink: 0 }} />
                   <span style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.35)' }}>
-                    {CHAINS[chainId]?.name || chainInfo?.name || 'Unknown Network'}
+                    {CHAINS_WITH_SEPOLIA[chainId]?.name || chainInfo?.name || 'Unknown Network'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Balance card */}
+            {/* Balance card — ETH */}
             {balance && (
               <div style={{
                 background: 'rgba(212,212,212,0.05)', border: '1px solid rgba(212,212,212,0.08)',
                 borderRadius: '10px', padding: '0.6rem 0.85rem',
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                marginBottom: '0.4rem',
               }}>
-                <span style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Balance</span>
+                <span style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>ETH Balance</span>
                 <span style={{ fontSize: '0.92rem', fontWeight: 800, color: '#d4d4d4' }}>
                   {balance} {chainInfo?.symbol || 'ETH'}
                 </span>
               </div>
             )}
+            {/* USDT Sepolia balance */}
+            <div style={{
+              background: onSepolia ? 'rgba(16,185,129,0.06)' : 'rgba(212,212,212,0.04)',
+              border: `1px solid ${onSepolia ? 'rgba(16,185,129,0.2)' : 'rgba(212,212,212,0.08)'}`,
+              borderRadius: '10px', padding: '0.6rem 0.85rem',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: onSepolia ? 'var(--green)' : 'rgba(212,212,212,0.3)', flexShrink: 0 }} />
+                <span style={{ fontSize: '0.73rem', color: 'rgba(255,255,255,0.35)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>USDT · Sepolia</span>
+              </div>
+              <span style={{ fontSize: '0.92rem', fontWeight: 800, color: onSepolia ? 'var(--green)' : '#d4d4d4' }}>
+                {usdtBal !== null ? `${usdtBal.toFixed(2)}` : '—'}
+              </span>
+            </div>
           </div>
 
           {/* Actions */}
@@ -137,7 +158,7 @@ export default function WalletInfo({ address, shortAddress, balance, chainId, ch
               Switch Network
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.3rem' }}>
-              {Object.entries(CHAINS).map(([hex, chain]) => {
+              {Object.entries(CHAINS_WITH_SEPOLIA).map(([hex, chain]) => {
                 const active = chainId === hex;
                 return (
                   <button
