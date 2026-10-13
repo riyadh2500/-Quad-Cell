@@ -1,81 +1,108 @@
 import { useEffect, useRef } from 'react';
 import { createChart } from 'lightweight-charts';
 
-export default function CandlestickChart({ data = [], height = 360, onCrosshair }) {
+export default function CandlestickChart({ data = [], height = 360, fillContainer = false, onCrosshair }) {
   const containerRef = useRef(null);
-  const chartRef = useRef(null);
-  const seriesRef = useRef(null);
+  const chartRef     = useRef(null);
+  const seriesRef    = useRef(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
 
-    const chart = createChart(containerRef.current, {
-      width: containerRef.current.clientWidth,
-      height,
+    const el = containerRef.current;
+    const h  = fillContainer ? el.clientHeight : height;
+
+    const chart = createChart(el, {
+      width:  el.clientWidth,
+      height: h || 320,
       layout: {
-        background: { color: 'transparent' },
-        textColor: 'rgba(255,255,255,0.45)',
-        fontSize: 11,
-        fontFamily: 'Inter, sans-serif',
+        background:  { color: 'transparent' },
+        textColor:   'rgba(255,255,255,0.4)',
+        fontSize:    11,
+        fontFamily:  'Inter, sans-serif',
       },
       grid: {
-        vertLines: { color: 'rgba(232,224,208,0.05)' },
-        horzLines: { color: 'rgba(232,224,208,0.05)' },
+        vertLines: { color: 'rgba(212,212,212,0.04)' },
+        horzLines: { color: 'rgba(212,212,212,0.04)' },
       },
       crosshair: {
         mode: 1,
-        vertLine: { color: 'rgba(232,224,208,0.3)', style: 0, width: 1 },
-        horzLine: { color: 'rgba(232,224,208,0.3)', style: 0, width: 1 },
+        vertLine: { color: 'rgba(212,212,212,0.3)', style: 0, width: 1 },
+        horzLine: { color: 'rgba(212,212,212,0.3)', style: 0, width: 1 },
       },
       rightPriceScale: {
-        borderColor: 'rgba(232,224,208,0.1)',
-        scaleMargins: { top: 0.1, bottom: 0.1 },
+        borderColor:   'rgba(212,212,212,0.08)',
+        scaleMargins:  { top: 0.08, bottom: 0.08 },
+        textColor:     'rgba(255,255,255,0.35)',
       },
       timeScale: {
-        borderColor: 'rgba(232,224,208,0.1)',
-        timeVisible: true,
-        secondsVisible: false,
+        borderColor:       'rgba(212,212,212,0.08)',
+        timeVisible:       true,
+        secondsVisible:    false,
+        fixLeftEdge:       true,
+        fixRightEdge:      true,
       },
+      handleScroll:  { mouseWheel: true, pressedMouseMove: true },
+      handleScale:   { mouseWheel: true, pinch: true },
     });
 
     const series = chart.addCandlestickSeries({
-      upColor: '#e8e0d0',
-      downColor: '#f87171',
-      borderUpColor: '#e8e0d0',
-      borderDownColor: '#f87171',
-      wickUpColor: 'rgba(232,224,208,0.6)',
-      wickDownColor: 'rgba(248,113,113,0.6)',
+      upColor:        '#d4d4d4',
+      downColor:      '#f87171',
+      borderUpColor:  '#d4d4d4',
+      borderDownColor:'#f87171',
+      wickUpColor:    'rgba(212,212,212,0.55)',
+      wickDownColor:  'rgba(248,113,113,0.55)',
     });
 
     seriesRef.current = series;
-    chartRef.current = chart;
+    chartRef.current  = chart;
 
-    if (data.length > 0) series.setData(data);
+    if (data.length > 0) {
+      series.setData(data);
+      chart.timeScale().fitContent();
+    }
 
     if (onCrosshair) {
       chart.subscribeCrosshairMove(param => {
-        if (param.time && seriesRef.current) {
-          const price = param.seriesData?.get(seriesRef.current);
-          onCrosshair({ time: param.time, price });
+        if (param.time) {
+          const price = param.seriesData?.get(series);
+          onCrosshair({ time: param.time, price: price || null });
+        } else {
+          onCrosshair(null);
         }
       });
     }
 
+    // Resize observer — handles both width and height changes
     const ro = new ResizeObserver(() => {
-      if (containerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-      }
+      if (!el || !chartRef.current) return;
+      const newH = fillContainer ? el.clientHeight : height;
+      chartRef.current.applyOptions({
+        width:  el.clientWidth,
+        height: newH || 320,
+      });
     });
-    ro.observe(containerRef.current);
+    ro.observe(el);
 
     return () => { ro.disconnect(); chart.remove(); };
-  }, [height]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fillContainer, height]);
 
+  // Update data when it changes
   useEffect(() => {
-    if (seriesRef.current && data.length > 0) {
-      seriesRef.current.setData(data);
-    }
+    if (!seriesRef.current || !data.length) return;
+    seriesRef.current.setData(data);
+    chartRef.current?.timeScale().fitContent();
   }, [data]);
 
-  return <div ref={containerRef} style={{ width: '100%', height }} />;
+  return (
+    <div
+      ref={containerRef}
+      style={{
+        width:  '100%',
+        height: fillContainer ? '100%' : height,
+      }}
+    />
+  );
 }
