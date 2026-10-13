@@ -1,5 +1,15 @@
 export const MOCK_AGENTS = [
   {
+    id: 'qc-assistant', name: 'Quad Cell Assistant', status: 'active',
+    isAssistant: true,
+    icon: '🧠',
+    description: 'Your AI guide to everything on Quad Cell — ask about features, pages, trading, payments, agents, infrastructure, and more.',
+    lastAction: 'Ready to answer your questions about Quad Cell', lastActionTime: Date.now()-60000,
+    wallet: 'Built-in · No wallet needed', spendingLimit: 0, spent30d: 0,
+    triggers: [{ type: 'always', value: 'Responds to any question about Quad Cell' }],
+    actions: [],
+  },
+  {
     id: 'a1', name: 'DCA Bot Alpha', status: 'active',
     description: 'Dollar-cost averages into BTC weekly. Buys $50 USDC worth every Monday at 9am UTC.',
     lastAction: 'Purchased 0.000513 BTC for $50 USDC', lastActionTime: Date.now()-86400000,

@@ -7,20 +7,43 @@ const RESPONSES = {
   schedule: (freq,amt,tok,to) => ({ type:'schedule', frequency:freq||'weekly', amount:parseFloat(amt)||50, token:tok||'USDC', to, route:'Rialo Interop', fee:0, compliance:'passed' }),
 };
 
+// Detects a bare 0x… address or an ENS name (no "send/to" context needed)
+export function detectAddress(text) {
+  const t = text.trim();
+  const hexMatch = t.match(/^(0x[0-9a-fA-F]{40})$/);
+  if (hexMatch) return hexMatch[1];
+  const ensMatch = t.match(/^([a-zA-Z0-9_-]+\.eth)$/i);
+  if (ensMatch) return ensMatch[1];
+  return null;
+}
+
+// Detects a bare number (the amount step)
+export function detectAmount(text) {
+  const t = text.trim();
+  const m = t.match(/^(\d+(?:\.\d+)?)$/);
+  return m ? parseFloat(m[1]) : null;
+}
+
 function parseNL(text) {
   const t = text.toLowerCase();
   const amtM = t.match(/(\d+(?:\.\d+)?)/);
-  const toM = t.match(/to\s+([\w.]+)/);
+  // Accept 0x address OR ENS in "to <addr>" pattern
+  const toM = t.match(/to\s+(0x[0-9a-fA-F]{40}|[\w.-]+\.eth|[\w.]+)/i);
   const tokM = t.match(/\b(usdc|eth|btc|sol|usdt)\b/i);
   const to = toM?.[1]||'unknown.eth';
   const amt = amtM?.[1]||'100';
-  const tok = tokM?.[1]?.toUpperCase()||'USDC';
-  if (t.includes('swap')) return RESPONSES.swap(tok,tok==='USDC'?'ETH':'USDC',amt);
+  const tok = tokM?.[1]?.toUpperCase()||'USDT';
+  if (t.includes('swap')) return RESPONSES.swap(tok,tok==='USDT'?'ETH':'USDT',amt);
   if (t.includes('schedule')||t.includes('weekly')||t.includes('monthly')||t.includes('daily')) {
     const freq = t.includes('daily')?'daily':t.includes('monthly')?'monthly':'weekly';
     return RESPONSES.schedule(freq,amt,tok,to);
   }
   return RESPONSES.send(amt,tok,to);
+}
+
+// Build a send preview directly from address + amount (skips NL parsing)
+export function buildSendPreview(address, amount) {
+  return RESPONSES.send(String(amount), 'USDT', address);
 }
 
 export class AIPaymentService extends RialoAdapter {
@@ -32,6 +55,11 @@ export class AIPaymentService extends RialoAdapter {
   async parseCommand(text) {
     await this._delay(400);
     return parseNL(text);
+  }
+  async previewFromAddressAmount(address, amount) {
+    await this._delay(150);
+    const parsed = buildSendPreview(address, amount);
+    return { ...parsed, estimatedGas: 0, rialoRoute: true, ipcVerified: true };
   }
   async previewTransaction(parsed) {
     await this._delay(150);

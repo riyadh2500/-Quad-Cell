@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { agentService } from '../../services/agents.js';
 import AgentCard from './AgentCard.jsx';
 import AgentDetail from './AgentDetail.jsx';
+import QuadCellAssistant from './QuadCellAssistant.jsx';
 import Button from '../../components/ui/Button.jsx';
 
 export default function AIAgents() {
@@ -11,10 +12,18 @@ export default function AIAgents() {
   useEffect(() => { load(); }, []);
   const toggle = async (id) => { await agentService.toggleAgent(id); load(); };
 
+  // Determine what detail view to render
+  const selectedAgent = agents.find(a => a.id === selected);
+  const showAssistant = selectedAgent?.isAssistant;
+
   return (
     <div style={{ padding: '1.5rem' }}>
       {selected ? (
-        <AgentDetail agentId={selected} onBack={() => { setSelected(null); load(); }} />
+        showAssistant ? (
+          <QuadCellAssistant onBack={() => { setSelected(null); load(); }} />
+        ) : (
+          <AgentDetail agentId={selected} onBack={() => { setSelected(null); load(); }} />
+        )
       ) : (
         <>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.5rem' }}>
@@ -25,7 +34,14 @@ export default function AIAgents() {
             <Button variant="primary" size="sm">+ New Agent</Button>
           </div>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-            {agents.map(a => <AgentCard key={a.id} agent={a} onClick={() => setSelected(a.id)} onToggle={toggle} />)}
+            {agents.map(a => (
+              <AgentCard
+                key={a.id}
+                agent={a}
+                onClick={() => setSelected(a.id)}
+                onToggle={toggle}
+              />
+            ))}
           </div>
         </>
       )}

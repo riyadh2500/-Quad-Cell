@@ -140,9 +140,10 @@ function timeLeft(endDate) {
 }
 
 export default function MarketDetail({ marketId, onBack, onPositionPlaced }) {
-  const [market,  setMarket]  = useState(null);
-  const [view,    setView]    = useState('trade'); // trade | book | details
-  const [success, setSuccess] = useState(false);
+  const [market,        setMarket]        = useState(null);
+  const [view,          setView]          = useState('trade'); // trade | book | details
+  const [success,       setSuccess]       = useState(false);
+  const [showTradePanel, setShowTradePanel] = useState(true);
 
   useEffect(() => {
     predictionMarketService.getMarket(marketId).then(setMarket);
@@ -288,13 +289,31 @@ export default function MarketDetail({ marketId, onBack, onPositionPlaced }) {
           <Card style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{ padding: '0.75rem 1.1rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <span style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--cream)' }}>Place Bet</span>
-              <span style={{ fontSize: '0.72rem', color: 'var(--green)' }}>● Live odds</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--green)' }}>● Live odds</span>
+                <button
+                  onClick={() => setShowTradePanel(v => !v)}
+                  title={showTradePanel ? 'Collapse' : 'Expand'}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--muted)', fontSize: '1rem', lineHeight: 1,
+                    padding: '0.1rem 0.25rem', borderRadius: 4,
+                    transition: 'color 0.15s',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--cream)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--muted)'}
+                >
+                  {showTradePanel ? '✕' : '＋'}
+                </button>
+              </div>
             </div>
-            <TradePanel
-              market={market}
-              onClose={onBack}
-              onSuccess={handleSuccess}
-            />
+            {showTradePanel && (
+              <TradePanel
+                market={market}
+                onClose={() => setShowTradePanel(false)}
+                onSuccess={handleSuccess}
+              />
+            )}
           </Card>
         </div>
       </div>

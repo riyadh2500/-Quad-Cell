@@ -10,6 +10,7 @@ import PredictionMarkets from './pages/PredictionMarkets/index.jsx';
 import PerpDex from './pages/PerpDex/index.jsx';
 import AIPayments from './pages/AIPayments/index.jsx';
 import AIAgents from './pages/AIAgents/index.jsx';
+import AssistantPage from './pages/Assistant/index.jsx';
 import ReactiveTransactions from './pages/Infrastructure/ReactiveTransactions.jsx';
 import RialoStream from './pages/Infrastructure/RialoStream.jsx';
 import RialoEdge from './pages/Infrastructure/RialoEdge.jsx';
@@ -31,6 +32,7 @@ export default function App() {
               <Route path="dex" element={<PerpDex />} />
               <Route path="payments" element={<AIPayments />} />
               <Route path="agents" element={<AIAgents />} />
+              <Route path="assistant" element={<AssistantPage />} />
               <Route path="infra/reactive" element={<ReactiveTransactions />} />
               <Route path="infra/stream" element={<RialoStream />} />
               <Route path="infra/edge" element={<RialoEdge />} />

@@ -7,5 +7,19 @@ export default defineConfig({
   server: {
     port: 3000,
     strictPort: true,
+    proxy: {
+      '/api/groq': {
+        target: 'https://api.groq.com',
+        changeOrigin: true,
+        rewrite: (path) => '/openai/v1/chat/completions',
+        configure: (proxy, options) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            // Forward the Authorization header from the request
+            const auth = req.headers['authorization'];
+            if (auth) proxyReq.setHeader('Authorization', auth);
+          });
+        },
+      },
+    },
   },
 })
