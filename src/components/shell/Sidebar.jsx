@@ -11,8 +11,8 @@ const NAV = [
     { label: 'AI Payments', icon: '💸', path: '/payments' },
   ]},
   { group: 'AI', items: [
-    { label: 'AI Agents', icon: '🤖', path: '/agents' },
-    { label: 'AI Assistant', icon: '🧠', path: '/assistant' },
+    { label: 'AI Agents',      icon: '🤖', path: '/agents' },
+    { label: 'AI Real Estate', icon: '🏡', path: '/realestate' },
   ]},
   { group: 'Infrastructure', items: [
     { label: 'Reactive Txs', icon: '⚡', path: '/infra/reactive' },
