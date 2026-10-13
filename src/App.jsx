@@ -11,6 +11,7 @@ import PerpDex from './pages/PerpDex/index.jsx';
 import AIPayments from './pages/AIPayments/index.jsx';
 import AIAgents from './pages/AIAgents/index.jsx';
 import RealEstate from './pages/RealEstate/index.jsx';
+import AssistantPage from './pages/Assistant/index.jsx';
 import ReactiveTransactions from './pages/Infrastructure/ReactiveTransactions.jsx';
 import RialoStream from './pages/Infrastructure/RialoStream.jsx';
 import RialoEdge from './pages/Infrastructure/RialoEdge.jsx';
@@ -33,6 +34,7 @@ export default function App() {
               <Route path="payments" element={<AIPayments />} />
               <Route path="agents" element={<AIAgents />} />
               <Route path="realestate" element={<RealEstate />} />
+              <Route path="assistant" element={<AssistantPage />} />
               <Route path="infra/reactive" element={<ReactiveTransactions />} />
               <Route path="infra/stream" element={<RialoStream />} />
               <Route path="infra/edge" element={<RialoEdge />} />

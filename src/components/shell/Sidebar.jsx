@@ -13,6 +13,7 @@ const NAV = [
   { group: 'AI', items: [
     { label: 'AI Agents',      icon: '🤖', path: '/agents' },
     { label: 'AI Real Estate', icon: '🏡', path: '/realestate' },
+    { label: 'AI Assistant',   icon: '🧠', path: '/assistant' },
   ]},
   { group: 'Infrastructure', items: [
     { label: 'Reactive Txs', icon: '⚡', path: '/infra/reactive' },
