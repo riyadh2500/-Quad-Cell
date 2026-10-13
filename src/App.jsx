@@ -12,11 +12,6 @@ import AIPayments from './pages/AIPayments/index.jsx';
 import AIAgents from './pages/AIAgents/index.jsx';
 import RealEstate from './pages/RealEstate/index.jsx';
 import AssistantPage from './pages/Assistant/index.jsx';
-import ReactiveTransactions from './pages/Infrastructure/ReactiveTransactions.jsx';
-import RialoStream from './pages/Infrastructure/RialoStream.jsx';
-import RialoEdge from './pages/Infrastructure/RialoEdge.jsx';
-import RialoIPC from './pages/Infrastructure/RialoIPC.jsx';
-import RialoWorkflow from './pages/Infrastructure/RialoWorkflow.jsx';
 import Playground from './pages/Ecosystem/Playground.jsx';
 import Applications from './pages/Ecosystem/Applications.jsx';
 import Developers from './pages/Ecosystem/Developers.jsx';
@@ -35,11 +30,6 @@ export default function App() {
               <Route path="agents" element={<AIAgents />} />
               <Route path="realestate" element={<RealEstate />} />
               <Route path="assistant" element={<AssistantPage />} />
-              <Route path="infra/reactive" element={<ReactiveTransactions />} />
-              <Route path="infra/stream" element={<RialoStream />} />
-              <Route path="infra/edge" element={<RialoEdge />} />
-              <Route path="infra/ipc" element={<RialoIPC />} />
-              <Route path="infra/workflow" element={<RialoWorkflow />} />
               <Route path="ecosystem/playground" element={<Playground />} />
               <Route path="ecosystem/apps" element={<Applications />} />
               <Route path="ecosystem/developers" element={<Developers />} />

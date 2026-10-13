@@ -15,13 +15,6 @@ const NAV = [
     { label: 'AI Real Estate', icon: '🏡', path: '/realestate' },
     { label: 'AI Assistant',   icon: '🧠', path: '/assistant' },
   ]},
-  { group: 'Infrastructure', items: [
-    { label: 'Reactive Txs', icon: '⚡', path: '/infra/reactive' },
-    { label: 'Rialo Stream', icon: '📡', path: '/infra/stream' },
-    { label: 'Rialo Edge', icon: '🌐', path: '/infra/edge' },
-    { label: 'Privacy (IPC)', icon: '🛡️', path: '/infra/ipc' },
-    { label: 'Automation', icon: '🔄', path: '/infra/workflow' },
-  ]},
   { group: 'Ecosystem', items: [
     { label: 'Playground', icon: '🧪', path: '/ecosystem/playground' },
     { label: 'Applications', icon: '🗂️', path: '/ecosystem/apps' },
