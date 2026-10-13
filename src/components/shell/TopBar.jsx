@@ -45,22 +45,6 @@ export default function TopBar() {
           }}>Quad Cell</span>
         </div>
 
-        {/* Center — network status */}
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: '0.5rem',
-          background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)',
-          borderRadius: '100px', padding: '0.3rem 0.9rem',
-          fontSize: '0.75rem', fontWeight: 600, color: 'var(--green)',
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--green)', display: 'inline-block', animation: 'blink 1.5s infinite' }} />
-          Rialo Mainnet
-          <span style={{ color: 'var(--muted)', fontWeight: 400 }}>·</span>
-          <span>{blockTime.toFixed(0)}ms</span>
-          {wsStatus === 'connected' && (
-            <span style={{ fontSize: '0.65rem', color: 'rgba(16,185,129,0.8)', marginLeft: '0.2rem' }}>● Live</span>
-          )}
-        </div>
-
         {/* Right */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
           {/* Notification bell */}
