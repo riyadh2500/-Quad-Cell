@@ -9,7 +9,6 @@ import Overview from './pages/Overview/index.jsx';
 import PredictionMarkets from './pages/PredictionMarkets/index.jsx';
 import PerpDex from './pages/PerpDex/index.jsx';
 import AIPayments from './pages/AIPayments/index.jsx';
-import AIAgents from './pages/AIAgents/index.jsx';
 import RealEstate from './pages/RealEstate/index.jsx';
 import AssistantPage from './pages/Assistant/index.jsx';
 
@@ -24,7 +23,6 @@ export default function App() {
               <Route path="markets" element={<PredictionMarkets />} />
               <Route path="dex" element={<PerpDex />} />
               <Route path="payments" element={<AIPayments />} />
-              <Route path="agents" element={<AIAgents />} />
               <Route path="realestate" element={<RealEstate />} />
               <Route path="assistant" element={<AssistantPage />} />
             </Route>

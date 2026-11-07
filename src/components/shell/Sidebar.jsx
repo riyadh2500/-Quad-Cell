@@ -11,7 +11,6 @@ const NAV = [
     { label: 'AI Payments', icon: '💸', path: '/payments' },
   ]},
   { group: 'AI', items: [
-    { label: 'AI Agents',      icon: '🤖', path: '/agents' },
     { label: 'AI Real Estate', icon: '🏡', path: '/realestate' },
     { label: 'AI Assistant',   icon: '🧠', path: '/assistant' },
   ]},
