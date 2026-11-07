@@ -1,107 +1,302 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-// ── Live price fetcher from CoinGecko (free, no key needed) ──────────────────
+// ═══════════════════════════════════════════════════════════════
+//  MULTI-API DATA FETCHERS  (all free, no API key required)
+// ═══════════════════════════════════════════════════════════════
+
 const COINS = [
-  { id: 'bitcoin',        sym: 'BTC'  },
-  { id: 'ethereum',       sym: 'ETH'  },
-  { id: 'solana',         sym: 'SOL'  },
-  { id: 'matic-network',  sym: 'MATIC'},
-  { id: 'arbitrum',       sym: 'ARB'  },
-  { id: 'binancecoin',    sym: 'BNB'  },
-  { id: 'tether',         sym: 'USDT' },
-  { id: 'usd-coin',       sym: 'USDC' },
-  { id: 'ripple',         sym: 'XRP'  },
-  { id: 'dogecoin',       sym: 'DOGE' },
-  { id: 'cardano',        sym: 'ADA'  },
-  { id: 'avalanche-2',    sym: 'AVAX' },
+  { id: 'bitcoin',          sym: 'BTC'   },
+  { id: 'ethereum',         sym: 'ETH'   },
+  { id: 'solana',           sym: 'SOL'   },
+  { id: 'binancecoin',      sym: 'BNB'   },
+  { id: 'ripple',           sym: 'XRP'   },
+  { id: 'dogecoin',         sym: 'DOGE'  },
+  { id: 'cardano',          sym: 'ADA'   },
+  { id: 'avalanche-2',      sym: 'AVAX'  },
+  { id: 'matic-network',    sym: 'POL'   },
+  { id: 'arbitrum',         sym: 'ARB'   },
+  { id: 'tron',             sym: 'TRX'   },
+  { id: 'chainlink',        sym: 'LINK'  },
+  { id: 'polkadot',         sym: 'DOT'   },
+  { id: 'uniswap',          sym: 'UNI'   },
+  { id: 'litecoin',         sym: 'LTC'   },
+  { id: 'tether',           sym: 'USDT'  },
+  { id: 'usd-coin',         sym: 'USDC'  },
 ];
 
-async function fetchLivePrices() {
+async function safeGet(url, timeout = 7000) {
   try {
-    const ids = COINS.map(c => c.id).join(',');
-    const res = await fetch(
-      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true`,
-      { signal: AbortSignal.timeout(6000) }
-    );
-    if (!res.ok) throw new Error('CoinGecko error');
-    const data = await res.json();
-    return COINS.map(c => {
-      const d = data[c.id];
-      return d
-        ? { sym: c.sym, price: d.usd, change24h: d.usd_24h_change?.toFixed(2), mcap: d.usd_market_cap }
-        : null;
-    }).filter(Boolean);
-  } catch {
-    return null;  // silently fail — static prompt still works
-  }
+    const res = await fetch(url, { signal: AbortSignal.timeout(timeout) });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch { return null; }
 }
 
-function buildSystemPrompt(prices) {
+// 1. CoinGecko — prices, 24h change, market cap
+async function fetchPrices() {
+  const ids = COINS.map(c => c.id).join(',');
+  const data = await safeGet(
+    `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true`
+  );
+  if (!data) return null;
+  return COINS.map(c => {
+    const d = data[c.id];
+    return d ? {
+      sym:       c.sym,
+      price:     d.usd,
+      change24h: d.usd_24h_change?.toFixed(2),
+      mcap:      d.usd_market_cap,
+      vol24h:    d.usd_24h_vol,
+    } : null;
+  }).filter(Boolean);
+}
+
+// 2. CoinGecko — global market overview
+async function fetchGlobalMarket() {
+  const data = await safeGet('https://api.coingecko.com/api/v3/global');
+  if (!data?.data) return null;
+  const g = data.data;
+  return {
+    totalMcap:    g.total_market_cap?.usd,
+    totalVol24h:  g.total_volume?.usd,
+    btcDominance: g.market_cap_percentage?.btc?.toFixed(1),
+    ethDominance: g.market_cap_percentage?.eth?.toFixed(1),
+    activeCrypto: g.active_cryptocurrencies,
+    mcapChange24h: g.market_cap_change_percentage_24h_usd?.toFixed(2),
+  };
+}
+
+// 3. Alternative.me — Fear & Greed Index
+async function fetchFearGreed() {
+  const data = await safeGet('https://api.alternative.me/fng/?limit=2');
+  if (!data?.data) return null;
+  const today     = data.data[0];
+  const yesterday = data.data[1];
+  return {
+    value:           today.value,
+    label:           today.value_classification,
+    yesterday:       yesterday?.value,
+    yesterdayLabel:  yesterday?.value_classification,
+  };
+}
+
+// 4. CoinGecko — Trending coins (top searches)
+async function fetchTrending() {
+  const data = await safeGet('https://api.coingecko.com/api/v3/search/trending');
+  if (!data?.coins) return null;
+  return data.coins.slice(0, 7).map(c => ({
+    name:  c.item.name,
+    sym:   c.item.symbol,
+    rank:  c.item.market_cap_rank,
+    thumb: c.item.small,
+  }));
+}
+
+// 5. CoinGecko — Top gainers & losers (from top-200 by mcap)
+async function fetchGainersLosers() {
+  const data = await safeGet(
+    'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&price_change_percentage=24h'
+  );
+  if (!Array.isArray(data)) return null;
+  const sorted = [...data].sort((a, b) =>
+    (b.price_change_percentage_24h ?? -999) - (a.price_change_percentage_24h ?? -999)
+  );
+  const gainers = sorted.slice(0, 5).map(c => ({ sym: c.symbol.toUpperCase(), change: c.price_change_percentage_24h?.toFixed(2) }));
+  const losers  = sorted.slice(-5).reverse().map(c => ({ sym: c.symbol.toUpperCase(), change: c.price_change_percentage_24h?.toFixed(2) }));
+  return { gainers, losers };
+}
+
+// 6. DeFiLlama — Total DeFi TVL
+async function fetchDeFiTVL() {
+  const data = await safeGet('https://api.llama.fi/v2/globalCharts');
+  if (!Array.isArray(data) || data.length === 0) return null;
+  const latest = data[data.length - 1];
+  const prev   = data[data.length - 2];
+  return {
+    tvl:    latest?.totalLiquidityUSD,
+    change: prev ? (((latest.totalLiquidityUSD - prev.totalLiquidityUSD) / prev.totalLiquidityUSD) * 100).toFixed(2) : null,
+  };
+}
+
+// 7. DeFiLlama — Top protocols by TVL
+async function fetchTopProtocols() {
+  const data = await safeGet('https://api.llama.fi/protocols');
+  if (!Array.isArray(data)) return null;
+  return data.slice(0, 8).map(p => ({
+    name:  p.name,
+    tvl:   p.tvl,
+    chain: p.chain,
+  }));
+}
+
+// 8. Blockchain fees — Etherscan-compatible endpoint (public)
+async function fetchGasPrices() {
+  // Using Owlracle free gas endpoint
+  const data = await safeGet('https://api.owlracle.info/v4/eth/gas?apikey=&eip1559=true', 5000);
+  if (!data?.speeds) return null;
+  return {
+    slow:    data.speeds[0]?.maxFeePerGas?.toFixed(0),
+    normal:  data.speeds[1]?.maxFeePerGas?.toFixed(0),
+    fast:    data.speeds[2]?.maxFeePerGas?.toFixed(0),
+    instant: data.speeds[3]?.maxFeePerGas?.toFixed(0),
+  };
+}
+
+// 9. ExchangeRate API — USD vs major fiat currencies
+async function fetchForexRates() {
+  const data = await safeGet('https://open.er-api.com/v6/latest/USD');
+  if (!data?.rates) return null;
+  const keep = ['EUR','GBP','JPY','CNY','AED','INR','KRW','BRL','CAD','AUD'];
+  return keep.map(c => ({ currency: c, rate: data.rates[c]?.toFixed(4) })).filter(r => r.rate);
+}
+
+// 10. CoinGecko — Exchange volumes
+async function fetchTopExchanges() {
+  const data = await safeGet('https://api.coingecko.com/api/v3/exchanges?per_page=5');
+  if (!Array.isArray(data)) return null;
+  return data.map(e => ({
+    name:    e.name,
+    vol24h:  e.trade_volume_24h_btc_normalized?.toFixed(0),
+    country: e.country,
+  }));
+}
+
+// ── Master fetch: run all in parallel ────────────────────────────────────────
+async function fetchAllData() {
+  const [prices, global, fearGreed, trending, gainersLosers, defiTvl, topProtocols, gas, forex, exchanges] = await Promise.all([
+    fetchPrices(),
+    fetchGlobalMarket(),
+    fetchFearGreed(),
+    fetchTrending(),
+    fetchGainersLosers(),
+    fetchDeFiTVL(),
+    fetchTopProtocols(),
+    fetchGasPrices(),
+    fetchForexRates(),
+    fetchTopExchanges(),
+  ]);
+  return { prices, global, fearGreed, trending, gainersLosers, defiTvl, topProtocols, gas, forex, exchanges };
+}
+
+// ── Format helpers ────────────────────────────────────────────────────────────
+function fmt(n, dec = 2) {
+  if (!n) return '—';
+  return Number(n).toLocaleString('en-US', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+}
+function fmtB(n) {
+  if (!n) return '—';
+  if (n >= 1e12) return `$${(n / 1e12).toFixed(2)}T`;
+  if (n >= 1e9)  return `$${(n / 1e9).toFixed(2)}B`;
+  if (n >= 1e6)  return `$${(n / 1e6).toFixed(2)}M`;
+  return `$${n.toFixed(0)}`;
+}
+
+// ── Build dynamic system prompt ───────────────────────────────────────────────
+function buildSystemPrompt(data) {
+  const { prices, global, fearGreed, trending, gainersLosers, defiTvl, topProtocols, gas, forex, exchanges } = data || {};
   const now = new Date();
   const timeStr = now.toLocaleString('en-US', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
     hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
   });
 
-  const priceBlock = prices
-    ? `\n═══ LIVE CRYPTO PRICES (fetched ${now.toLocaleTimeString()}) ═══\n` +
-      prices.map(p =>
-        `${p.sym}: $${Number(p.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: p.price > 1 ? 2 : 6 })}` +
-        (p.change24h ? ` (${Number(p.change24h) >= 0 ? '+' : ''}${p.change24h}% 24h)` : '')
-      ).join('\n') +
-      `\n\nThese are real-time prices. Use them when users ask about current crypto prices. Do NOT say you lack access to real-time data.`
-    : `\n(Live prices unavailable at this moment — CoinGecko may be rate-limiting.)`;
-
-  return `You are the Quad Cell AI Assistant — a fast, intelligent assistant built into the Quad Cell DeFi platform.
+  let prompt = `You are the Quad Cell AI Assistant — a fast, intelligent assistant built into the Quad Cell DeFi platform.
 
 CURRENT DATE & TIME: ${timeStr}
-${priceBlock}
+IMPORTANT: You have real-time market data injected below. NEVER say you lack access to live data. Always quote actual figures from this data.
 
-You can answer ANY question like a normal AI (coding, math, writing, science, history, etc.).
-You also have deep knowledge of Quad Cell and its features.
+`;
 
-IMPORTANT: You DO have access to real-time crypto prices (listed above). When asked for current prices, quote them directly. Always mention the 24h change when available.
+  // Prices
+  if (prices?.length) {
+    prompt += `═══ LIVE CRYPTO PRICES (updated ${now.toLocaleTimeString()}) ═══\n`;
+    prices.forEach(p => {
+      const priceStr = p.price > 1
+        ? `$${Number(p.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : `$${Number(p.price).toFixed(6)}`;
+      const chg = p.change24h ? ` (${Number(p.change24h) >= 0 ? '+' : ''}${p.change24h}% 24h)` : '';
+      const mc = p.mcap ? ` | MCap: ${fmtB(p.mcap)}` : '';
+      prompt += `${p.sym}: ${priceStr}${chg}${mc}\n`;
+    });
+    prompt += '\n';
+  }
 
-═══ QUAD CELL PLATFORM KNOWLEDGE ═══
+  // Global market
+  if (global) {
+    prompt += `═══ GLOBAL CRYPTO MARKET ═══\n`;
+    prompt += `Total Market Cap: ${fmtB(global.totalMcap)} (${global.mcapChange24h >= 0 ? '+' : ''}${global.mcapChange24h}% 24h)\n`;
+    prompt += `24h Volume: ${fmtB(global.totalVol24h)}\n`;
+    prompt += `BTC Dominance: ${global.btcDominance}% | ETH Dominance: ${global.ethDominance}%\n`;
+    prompt += `Active Cryptocurrencies: ${global.activeCrypto?.toLocaleString()}\n\n`;
+  }
+
+  // Fear & Greed
+  if (fearGreed) {
+    prompt += `═══ FEAR & GREED INDEX ═══\n`;
+    prompt += `Today: ${fearGreed.value}/100 — ${fearGreed.label}\n`;
+    if (fearGreed.yesterday) prompt += `Yesterday: ${fearGreed.yesterday}/100 — ${fearGreed.yesterdayLabel}\n`;
+    prompt += `(0-25=Extreme Fear, 26-46=Fear, 47-54=Neutral, 55-75=Greed, 76-100=Extreme Greed)\n\n`;
+  }
+
+  // Gainers & Losers
+  if (gainersLosers) {
+    prompt += `═══ TOP GAINERS & LOSERS (24h, Top 100 by MCap) ═══\n`;
+    prompt += `Gainers: ${gainersLosers.gainers?.map(c => `${c.sym} +${c.change}%`).join(', ')}\n`;
+    prompt += `Losers:  ${gainersLosers.losers?.map(c => `${c.sym} ${c.change}%`).join(', ')}\n\n`;
+  }
+
+  // Trending
+  if (trending?.length) {
+    prompt += `═══ TRENDING COINS (most searched on CoinGecko) ═══\n`;
+    prompt += trending.map(t => `${t.sym} (${t.name})${t.rank ? ` #${t.rank}` : ''}`).join(', ') + '\n\n';
+  }
+
+  // DeFi TVL
+  if (defiTvl) {
+    prompt += `═══ DEFI TOTAL VALUE LOCKED (DeFiLlama) ═══\n`;
+    prompt += `Total DeFi TVL: ${fmtB(defiTvl.tvl)}${defiTvl.change ? ` (${defiTvl.change >= 0 ? '+' : ''}${defiTvl.change}% 24h)` : ''}\n\n`;
+  }
+
+  if (topProtocols?.length) {
+    prompt += `Top DeFi Protocols by TVL: ${topProtocols.map(p => `${p.name} (${fmtB(p.tvl)})`).join(', ')}\n\n`;
+  }
+
+  // Gas
+  if (gas) {
+    prompt += `═══ ETHEREUM GAS PRICES (Gwei) ═══\n`;
+    prompt += `Slow: ${gas.slow} | Normal: ${gas.normal} | Fast: ${gas.fast} | Instant: ${gas.instant}\n\n`;
+  }
+
+  // Forex
+  if (forex?.length) {
+    prompt += `═══ USD EXCHANGE RATES ═══\n`;
+    prompt += forex.map(f => `1 USD = ${f.rate} ${f.currency}`).join(' | ') + '\n\n';
+  }
+
+  // Exchanges
+  if (exchanges?.length) {
+    prompt += `═══ TOP CRYPTO EXCHANGES (24h BTC volume normalized) ═══\n`;
+    prompt += exchanges.map(e => `${e.name}: ${e.vol24h} BTC${e.country ? ` (${e.country})` : ''}`).join(', ') + '\n\n';
+  }
+
+  prompt += `═══ QUAD CELL PLATFORM KNOWLEDGE ═══
 
 WHAT IS QUAD CELL:
-Quad Cell is a full-stack DeFi terminal built on the Rialo infrastructure. It unifies perpetual futures trading, prediction markets, AI-powered payments, and autonomous trading agents into one dark, fast interface.
+Quad Cell is a full-stack DeFi terminal. It unifies perpetual futures trading, prediction markets, AI-powered payments, and real estate into one dark, fast interface.
 
-PERPETUAL DEX:
-- Trade BTC-PERP, ETH-PERP, SOL-PERP, MATIC-PERP, ARB-PERP, BNB-PERP
-- Leverage: 1×–20× using the slider in Order Entry
-- Order types: Market (instant) and Limit (set your price)
-- Sides: Long (profit if price rises) | Short (profit if price falls)
-- Collateral: USDC
-- Features: live order book, trades tape, candlestick/line chart, positions panel with unrealised P&L and Close button
+PERPETUAL DEX: Trade BTC/ETH/SOL/POL/ARB/BNB-PERP with 1×–20× leverage. Market & Limit orders. Long/Short. Collateral: USDC.
 
-PREDICTION MARKETS:
-- Categories: Crypto, Technology, Politics, Sports
-- YES/NO outcome betting with USDT on Ethereum Sepolia testnet
-- Share price = current probability (e.g. YES at 68% costs $0.68/share)
-- Payout = amount ÷ share_price USDT if your side resolves correctly
-- Resolution: Rialo Stream Oracle (tamper-proof on-chain)
+PREDICTION MARKETS: YES/NO betting with USDT on Ethereum Sepolia. Categories: Crypto, Tech, Politics, Sports.
 
-AI PAYMENT AGENT:
-- Natural language: "Send 250 USDT to alice.eth" or paste a 0x address
-- Real ERC-20 USDT transfer on Sepolia. Zero fees via Rialo Cruise
-- Supports: send, swap, schedule (daily/weekly/monthly)
+AI PAYMENTS: Natural language USDT transfers. "Send 250 USDT to alice.eth". Supports send, swap, schedule.
 
-AI REAL ESTATE:
-- Browse Dubai & UAE property listings
-- Filter by type: Villa, Penthouse, Apartment, Studio, Townhouse
-- Each listing shows price, ROI %, rental yield, beds/baths, sqft
-- Tokenized properties support fractional blockchain ownership
-- AI advisor answers questions about Dubai property investment
+AI REAL ESTATE: Dubai & UAE property listings. Filter by type. ROI calculator, mortgage calculator, AI property advisor.
 
-WALLET:
-- Supports MetaMask, Coinbase Wallet, any EIP-1193 browser extension
-- Auto-switches to Ethereum Sepolia for USDT operations
-- Sepolia ETH faucet: sepoliafaucet.com
+WALLET: MetaMask / Coinbase Wallet / any EIP-1193 extension. Ethereum Sepolia. Zero fees.
 
-FEES: All operations are $0.00 via Rialo infrastructure.
+Be concise, data-driven, and direct. Use markdown. Always cite actual numbers from the data above.`;
 
-Be concise, helpful, and direct. Use markdown formatting when it helps readability.`;
+  return prompt;
 }
 
 const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY;
@@ -225,17 +420,18 @@ function Inline({ text }) {
 }
 
 const QUICK = [
-  'What is Quad Cell?',
   'crypto price',
-  'BTC price today',
-  'ETH vs BTC which is better?',
-  'How do I trade on the Perp DEX?',
-  'How do Prediction Markets work?',
-  'How do I send USDT?',
-  'Explain DeFi in simple terms',
-  'What is a perpetual future?',
-  'Dubai property investment?',
-  'How do I get started?',
+  'Fear & Greed index?',
+  'Top gainers today?',
+  'ETH gas price now?',
+  'Total DeFi TVL?',
+  'BTC dominance?',
+  'Trending coins?',
+  'Top DeFi protocols?',
+  'USD to AED rate?',
+  'What is Quad Cell?',
+  'How to trade perps?',
+  'Dubai property ROI?',
 ];
 
 function msgTime(ts) {
@@ -252,22 +448,24 @@ export default function AssistantPage() {
   const [input,     setInput]     = useState('');
   const [streaming, setStreaming] = useState(false);
   const [error,     setError]     = useState(null);
-  const [prices,    setPrices]    = useState(null);          // live prices
-  const [priceAge,  setPriceAge]  = useState(null);          // timestamp of last fetch
-  const [priceErr,  setPriceErr]  = useState(false);
+  const [liveData,  setLiveData]  = useState({});        // all API data
+  const [dataAge,   setDataAge]   = useState(null);
+  const [loading,   setLoading]   = useState(true);
   const bottomRef  = useRef(null);
   const inputRef   = useRef(null);
   const historyRef = useRef([]);
 
-  // Fetch prices on mount + every 60 seconds
+  // Fetch ALL data on mount + every 90 seconds
   useEffect(() => {
     async function load() {
-      const data = await fetchLivePrices();
-      if (data) { setPrices(data); setPriceAge(Date.now()); setPriceErr(false); }
-      else setPriceErr(true);
+      setLoading(true);
+      const data = await fetchAllData();
+      setLiveData(data);
+      setDataAge(Date.now());
+      setLoading(false);
     }
     load();
-    const interval = setInterval(load, 60_000);
+    const interval = setInterval(load, 90_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -283,7 +481,7 @@ export default function AssistantPage() {
     setMessages(m => [...m, { id: `u${Date.now()}`, role: 'user', text: query, time: Date.now() }]);
     historyRef.current.push({ role: 'user', content: query });
 
-    const msgs = [{ role: 'system', content: buildSystemPrompt(prices) }, ...historyRef.current.slice(-24)];
+    const msgs = [{ role: 'system', content: buildSystemPrompt(liveData) }, ...historyRef.current.slice(-24)];
     const aiId = `a${Date.now()}`;
     setMessages(m => [...m, { id: aiId, role: 'ai', text: '', time: Date.now(), streaming: true }]);
     setStreaming(true);
@@ -307,7 +505,7 @@ export default function AssistantPage() {
       historyRef.current.pop();
     }
     setStreaming(false);
-  }, [input, streaming]);
+  }, [input, streaming, liveData]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#0a0a0a', overflow: 'hidden' }}>
@@ -326,42 +524,114 @@ export default function AssistantPage() {
           </div>
         </div>
         <div style={{ fontSize: '0.68rem', color: '#374151', fontFamily: 'monospace', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-          {/* Live price status pill */}
+          {/* Live data status pill */}
           <span style={{
-            background: prices ? 'rgba(34,197,94,0.1)' : priceErr ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
-            border: `1px solid ${prices ? 'rgba(34,197,94,0.3)' : priceErr ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`,
-            color: prices ? '#22c55e' : priceErr ? '#f87171' : '#f59e0b',
+            background: liveData.prices ? 'rgba(34,197,94,0.1)' : loading ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
+            border: `1px solid ${liveData.prices ? 'rgba(34,197,94,0.3)' : loading ? 'rgba(245,158,11,0.3)' : 'rgba(239,68,68,0.3)'}`,
+            color: liveData.prices ? '#22c55e' : loading ? '#f59e0b' : '#f87171',
             borderRadius: 100, padding: '0.18rem 0.6rem', fontSize: '0.65rem', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.3rem'
           }}>
-            <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', display: 'inline-block', animation: prices ? 'blink 2s infinite' : 'none' }} />
-            {prices ? `Live · ${new Date(priceAge).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : priceErr ? 'Prices offline' : 'Loading…'}
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', display: 'inline-block', animation: liveData.prices ? 'blink 2s infinite' : 'none' }} />
+            {loading ? 'Fetching data…' : liveData.prices ? `Live · ${new Date(dataAge).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Offline'}
           </span>
           <span style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '0.15rem 0.45rem' }}>Qwen 27B</span>
           <span style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '0.15rem 0.45rem' }}>Groq LPU</span>
         </div>
       </div>
 
-      {/* Live price ticker strip */}
-      {prices && (
-        <div style={{ background: '#0d0d0d', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '0.28rem 1.25rem', display: 'flex', gap: '1.2rem', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
-          {prices.map(p => {
-            const up = Number(p.change24h) >= 0;
-            return (
-              <div key={p.sym} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
-                <span style={{ fontSize: '0.67rem', fontWeight: 700, color: '#9ca3af', fontFamily: 'monospace' }}>{p.sym}</span>
-                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#e8e0d0', fontFamily: 'monospace' }}>
-                  ${Number(p.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: p.price > 1 ? 2 : 6 })}
-                </span>
-                {p.change24h && (
-                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: up ? '#22c55e' : '#ef4444' }}>
-                    {up ? '▲' : '▼'}{Math.abs(p.change24h)}%
+      {/* ── Live data ticker strip ── */}
+      <div style={{ background: '#080808', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '0', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
+
+        {/* Row 1: Prices */}
+        {liveData.prices && (
+          <div style={{ display: 'flex', gap: '0', padding: '0.22rem 1.25rem', borderBottom: '1px solid rgba(255,255,255,0.04)', overflowX: 'auto', scrollbarWidth: 'none' }}>
+            {liveData.prices.map(p => {
+              const up = Number(p.change24h) >= 0;
+              return (
+                <div key={p.sym} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', flexShrink: 0, padding: '0 0.75rem', borderRight: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ fontSize: '0.64rem', fontWeight: 700, color: '#6b7280', fontFamily: 'monospace' }}>{p.sym}</span>
+                  <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#e8e0d0', fontFamily: 'monospace' }}>
+                    {p.price > 1
+                      ? `$${Number(p.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `$${Number(p.price).toFixed(4)}`}
                   </span>
-                )}
+                  {p.change24h && (
+                    <span style={{ fontSize: '0.6rem', fontWeight: 700, color: up ? '#22c55e' : '#ef4444' }}>
+                      {up ? '▲' : '▼'}{Math.abs(p.change24h)}%
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Row 2: Market stats + Fear & Greed + DeFi TVL */}
+        <div style={{ display: 'flex', gap: '1rem', padding: '0.22rem 1.25rem', overflowX: 'auto', scrollbarWidth: 'none', alignItems: 'center' }}>
+          {liveData.global && (
+            <>
+              <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.6rem', color: '#4b5563' }}>MCap</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#9ca3af', fontFamily: 'monospace' }}>{fmtB(liveData.global.totalMcap)}</span>
+                <span style={{ fontSize: '0.6rem', fontWeight: 700, color: Number(liveData.global.mcapChange24h) >= 0 ? '#22c55e' : '#ef4444' }}>
+                  {Number(liveData.global.mcapChange24h) >= 0 ? '▲' : '▼'}{Math.abs(liveData.global.mcapChange24h)}%
+                </span>
               </div>
-            );
-          })}
+              <span style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+              <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.6rem', color: '#4b5563' }}>BTC.D</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#f59e0b', fontFamily: 'monospace' }}>{liveData.global.btcDominance}%</span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.6rem', color: '#4b5563' }}>Vol</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#9ca3af', fontFamily: 'monospace' }}>{fmtB(liveData.global.totalVol24h)}</span>
+              </div>
+            </>
+          )}
+          {liveData.fearGreed && (
+            <>
+              <span style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+              <div style={{ display: 'flex', gap: '0.3rem', alignItems: 'center', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.6rem', color: '#4b5563' }}>F&G</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, fontFamily: 'monospace',
+                  color: liveData.fearGreed.value >= 75 ? '#22c55e' : liveData.fearGreed.value >= 55 ? '#86efac' : liveData.fearGreed.value >= 47 ? '#fbbf24' : liveData.fearGreed.value >= 26 ? '#f97316' : '#ef4444'
+                }}>
+                  {liveData.fearGreed.value} · {liveData.fearGreed.label}
+                </span>
+              </div>
+            </>
+          )}
+          {liveData.defiTvl && (
+            <>
+              <span style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+              <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.6rem', color: '#4b5563' }}>DeFi TVL</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#60a5fa', fontFamily: 'monospace' }}>{fmtB(liveData.defiTvl.tvl)}</span>
+              </div>
+            </>
+          )}
+          {liveData.gas?.fast && (
+            <>
+              <span style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+              <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.6rem', color: '#4b5563' }}>Gas</span>
+                <span style={{ fontSize: '0.65rem', fontWeight: 700, color: '#a78bfa', fontFamily: 'monospace' }}>{liveData.gas.fast} Gwei</span>
+              </div>
+            </>
+          )}
+          {liveData.gainersLosers?.gainers?.length > 0 && (
+            <>
+              <span style={{ width: 1, height: 12, background: 'rgba(255,255,255,0.08)', flexShrink: 0 }} />
+              <div style={{ display: 'flex', gap: '0.3rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.6rem', color: '#4b5563' }}>🔥</span>
+                <span style={{ fontSize: '0.6rem', color: '#22c55e', fontFamily: 'monospace' }}>
+                  {liveData.gainersLosers.gainers.slice(0,3).map(g => `${g.sym} +${g.change}%`).join(' · ')}
+                </span>
+              </div>
+            </>
+          )}
         </div>
-      )}
+      </div>
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', scrollbarWidth: 'thin', scrollbarColor: '#1f2937 transparent' }}>
