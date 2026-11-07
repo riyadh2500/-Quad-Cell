@@ -271,14 +271,138 @@ function PropertyModal({ initial, onSave, onClose }) {
   );
 }
 
+// ── Property Detail Modal ─────────────────────────────────────────────────────
+function PropertyDetail({ p, onClose, onEdit, onDelete, onAsk }) {
+  const isPhoto = p.img && p.img.startsWith('data:');
+  const annualRent = p.rent * 12;
+  const grossYield = p.price ? ((annualRent / p.price) * 100).toFixed(2) : 0;
+  const monthly20y = p.price ? ((p.price * 0.8 * 0.06 / 12) / (1 - Math.pow(1 + 0.06/12, -240))).toFixed(0) : 0;
+
+  const statusColor = p.status === 'For Sale' ? '#22c55e' : p.status === 'For Rent' ? '#60a5fa' : p.status === 'Off Plan' ? '#fbbf24' : '#9ca3af';
+  const statusBg    = p.status === 'For Sale' ? 'rgba(34,197,94,0.12)' : p.status === 'For Rent' ? 'rgba(59,130,246,0.12)' : p.status === 'Off Plan' ? 'rgba(251,191,36,0.12)' : 'rgba(107,114,128,0.12)';
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.8)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 18, width: '100%', maxWidth: 620, maxHeight: '92vh', overflowY: 'auto', boxShadow: '0 24px 80px rgba(0,0,0,0.85)' }}>
+
+        {/* Hero image */}
+        <div style={{ height: 220, background: 'linear-gradient(135deg, #1a1a2e, #16213e)', position: 'relative', overflow: 'hidden', borderRadius: '18px 18px 0 0' }}>
+          {isPhoto
+            ? <img src={p.img} alt={p.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '5rem' }}>{p.img || '🏠'}</div>
+          }
+          {/* Overlay gradient */}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.7) 0%, transparent 50%)' }} />
+          {/* Badges */}
+          <div style={{ position: 'absolute', top: 12, left: 14, display: 'flex', gap: 6 }}>
+            <span style={{ background: statusBg, border: `1px solid ${statusColor}40`, color: statusColor, fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.65rem', borderRadius: 100 }}>{p.status}</span>
+            {p.tokenized && <span style={{ background: 'rgba(168,85,247,0.2)', border: '1px solid rgba(168,85,247,0.4)', color: '#c084fc', fontSize: '0.68rem', fontWeight: 700, padding: '0.2rem 0.65rem', borderRadius: 100 }}>⛓ Tokenized</span>}
+          </div>
+          {/* ROI badge */}
+          <div style={{ position: 'absolute', top: 12, right: 14, background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 9, padding: '0.22rem 0.6rem', fontSize: '0.75rem', color: '#22c55e', fontWeight: 800 }}>
+            {p.roi}% ROI
+          </div>
+          {/* Close btn */}
+          <button onClick={onClose} style={{ position: 'absolute', bottom: 12, right: 14, background: 'rgba(0,0,0,0.65)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: '50%', width: 32, height: 32, color: '#e8e0d0', fontSize: '1rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          {/* Price on image */}
+          <div style={{ position: 'absolute', bottom: 14, left: 14 }}>
+            <div style={{ fontWeight: 900, fontSize: '1.5rem', color: '#fff', lineHeight: 1 }}>${p.price.toLocaleString()}</div>
+            {p.rent > 0 && <div style={{ fontSize: '0.75rem', color: 'rgba(255,255,255,0.65)', marginTop: '0.15rem' }}>${p.rent.toLocaleString()}/mo rental income</div>}
+          </div>
+        </div>
+
+        <div style={{ padding: '1.25rem' }}>
+          {/* Title & location */}
+          <div style={{ marginBottom: '1rem' }}>
+            <h2 style={{ fontWeight: 800, fontSize: '1.15rem', color: '#e8e0d0', margin: 0, lineHeight: 1.3 }}>{p.title}</h2>
+            <div style={{ fontSize: '0.78rem', color: '#6b7280', marginTop: '0.3rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+              <span>📍</span>{p.location}
+            </div>
+          </div>
+
+          {/* Key stats grid */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+            {[
+              { icon: '🛏', label: 'Beds',  value: p.beds },
+              { icon: '🚿', label: 'Baths', value: p.baths },
+              { icon: '📐', label: 'Sqft',  value: p.sqft ? p.sqft.toLocaleString() : '—' },
+              { icon: '🏷', label: 'Type',  value: p.type },
+            ].map(s => (
+              <div key={s.label} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, padding: '0.6rem', textAlign: 'center' }}>
+                <div style={{ fontSize: '1.1rem' }}>{s.icon}</div>
+                <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#e8e0d0', marginTop: '0.2rem' }}>{s.value}</div>
+                <div style={{ fontSize: '0.62rem', color: '#4b5563', marginTop: '0.1rem' }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Financial breakdown */}
+          <div style={{ background: 'rgba(34,197,94,0.05)', border: '1px solid rgba(34,197,94,0.15)', borderRadius: 12, padding: '0.9rem 1rem', marginBottom: '1rem' }}>
+            <div style={{ fontWeight: 700, fontSize: '0.78rem', color: '#22c55e', marginBottom: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>📊 Financial Overview</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+              {[
+                ['Purchase Price',    `$${p.price.toLocaleString()}`],
+                ['Price / sqft',      p.sqft ? `$${Math.round(p.price/p.sqft).toLocaleString()}` : '—'],
+                ['Monthly Rent',      p.rent ? `$${p.rent.toLocaleString()}` : '—'],
+                ['Annual Rent',       annualRent ? `$${annualRent.toLocaleString()}` : '—'],
+                ['Gross Yield',       `${grossYield}%`],
+                ['ROI',               `${p.roi}%`],
+                ['Est. Mortgage/mo',  `$${Number(monthly20y).toLocaleString()}`],
+                ['Down Payment (20%)',`$${Math.round(p.price*0.2).toLocaleString()}`],
+              ].map(([k,v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.3rem 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+                  <span style={{ fontSize: '0.73rem', color: '#6b7280' }}>{k}</span>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#e8e0d0' }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Tags */}
+          {p.tags?.length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>Features</div>
+              <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap' }}>
+                {p.tags.map(t => (
+                  <span key={t} style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 100, padding: '0.2rem 0.65rem', fontSize: '0.72rem', color: '#9ca3af' }}>✓ {t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button onClick={() => { onAsk(`Tell me everything about ${p.title} in ${p.location}. Price $${p.price.toLocaleString()}, ROI ${p.roi}%, ${p.beds}BR. Is it a good investment?`); onClose(); }}
+              style={{ flex: 2, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '0.65rem', color: '#22c55e', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}
+              onMouseEnter={e => e.currentTarget.style.background='rgba(34,197,94,0.18)'}
+              onMouseLeave={e => e.currentTarget.style.background='rgba(34,197,94,0.1)'}>
+              🧠 Ask AI Advisor
+            </button>
+            <button onClick={() => { onClose(); onEdit(p); }}
+              style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 10, padding: '0.65rem', color: '#9ca3af', fontSize: '0.82rem', fontWeight: 600, cursor: 'pointer' }}>
+              ✏️ Edit
+            </button>
+            <button onClick={() => { onClose(); onDelete(p.id); }}
+              style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, padding: '0.65rem 0.85rem', color: '#f87171', fontSize: '0.82rem', cursor: 'pointer' }}>
+              🗑
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Property card ─────────────────────────────────────────────────────────────
-function PropertyCard({ p, onAsk, onEdit, onDelete }) {
+function PropertyCard({ p, onAsk, onEdit, onDelete, onDetail }) {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
   return (
     <div onMouseEnter={() => setHovered(true)} onMouseLeave={() => { setHovered(false); setMenuOpen(false); }}
-      style={{ background: hovered ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)', border: `1px solid ${hovered ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 14, overflow: 'hidden', transition: 'all 0.18s', position: 'relative' }}>
+      onClick={() => onDetail(p)}
+      style={{ background: hovered ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)', border: `1px solid ${hovered ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 14, overflow: 'hidden', transition: 'all 0.18s', position: 'relative', cursor: 'pointer' }}>
 
       {/* Image area */}
       <div style={{ height: 96, background: 'linear-gradient(135deg, #1a1a2e, #16213e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.8rem', position: 'relative', overflow: 'hidden' }}>
@@ -380,7 +504,8 @@ export default function RealEstate() {
   const [filter,     setFilter]    = useState('All');
   const [sort,       setSort]      = useState('roi');
   const [showModal,  setShowModal] = useState(false);
-  const [editTarget, setEditTarget] = useState(null); // null = add, object = edit
+  const [editTarget, setEditTarget] = useState(null);
+  const [detailTarget, setDetailTarget] = useState(null); // null = add, object = edit
   const [search,     setSearch]    = useState('');
   const historyRef = useRef([]);
   const bottomRef  = useRef(null);
@@ -518,7 +643,7 @@ export default function RealEstate() {
               <div style={{ fontSize: '0.75rem' }}>Try a different filter or <button onClick={() => { setEditTarget(null); setShowModal(true); }} style={{ background: 'none', border: 'none', color: '#22c55e', cursor: 'pointer', fontSize: '0.75rem', padding: 0, fontWeight: 600 }}>add a new property</button></div>
             </div>
           ) : (
-            filtered.map(p => <PropertyCard key={p.id} p={p} onAsk={q => ask(q)} onEdit={openEdit} onDelete={handleDelete} />)
+            filtered.map(p => <PropertyCard key={p.id} p={p} onAsk={q => ask(q)} onEdit={openEdit} onDelete={handleDelete} onDetail={setDetailTarget} />
           )}
         </div>
       </div>
@@ -596,6 +721,17 @@ export default function RealEstate() {
           initial={editTarget}
           onSave={handleSave}
           onClose={() => { setShowModal(false); setEditTarget(null); }}
+        />
+      )}
+
+      {/* Detail Modal */}
+      {detailTarget && (
+        <PropertyDetail
+          p={detailTarget}
+          onClose={() => setDetailTarget(null)}
+          onEdit={p => { setDetailTarget(null); openEdit(p); }}
+          onDelete={id => { setDetailTarget(null); handleDelete(id); }}
+          onAsk={ask}
         />
       )}
     </div>
