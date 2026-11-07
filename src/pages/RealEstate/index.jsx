@@ -1,16 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-// ── Default listings (localStorage থেকে load হবে) ────────────────────────────
-const DEFAULT_LISTINGS = [
-  { id: 'p1', title: 'Modern Downtown Penthouse', location: 'Dubai Marina, UAE', price: 4200000, rent: 28000, beds: 4, baths: 3, sqft: 3800, type: 'Penthouse', status: 'For Sale', roi: 8.2, img: '🏙', tags: ['Sea View', 'Smart Home', 'Pool'], tokenized: true },
-  { id: 'p2', title: 'Palm Jumeirah Villa', location: 'Palm Jumeirah, Dubai', price: 12500000, rent: 85000, beds: 6, baths: 7, sqft: 9200, type: 'Villa', status: 'For Sale', roi: 7.1, img: '🌴', tags: ['Beachfront', 'Private Pool', 'Garden'], tokenized: true },
-  { id: 'p3', title: 'Business Bay Studio', location: 'Business Bay, Dubai', price: 850000, rent: 7200, beds: 1, baths: 1, sqft: 620, type: 'Studio', status: 'For Rent', roi: 10.2, img: '🏢', tags: ['City View', 'Gym', 'Metro Access'], tokenized: false },
-  { id: 'p4', title: 'JVC Family Apartment', location: 'Jumeirah Village Circle', price: 1100000, rent: 9500, beds: 3, baths: 2, sqft: 1450, type: 'Apartment', status: 'For Sale', roi: 9.5, img: '🏘', tags: ['Park View', 'Community Pool', 'Parking'], tokenized: true },
-  { id: 'p5', title: 'DIFC Luxury Flat', location: 'DIFC, Dubai', price: 3100000, rent: 22000, beds: 2, baths: 2, sqft: 1800, type: 'Apartment', status: 'For Sale', roi: 8.8, img: '🏛', tags: ['Skyline View', 'Concierge', 'Gym'], tokenized: false },
-  { id: 'p6', title: 'Mirdif Townhouse', location: 'Mirdif, Dubai', price: 1850000, rent: 13500, beds: 4, baths: 3, sqft: 2600, type: 'Townhouse', status: 'For Sale', roi: 8.0, img: '🏠', tags: ['Garden', 'School Nearby', 'Quiet Area'], tokenized: true },
-  { id: 'p7', title: 'Downtown Studio Investment', location: 'Downtown Dubai', price: 1200000, rent: 10500, beds: 1, baths: 1, sqft: 750, type: 'Studio', status: 'For Sale', roi: 10.5, img: '🗼', tags: ['Burj View', 'High Floor', 'Furnished'], tokenized: true },
-  { id: 'p8', title: 'Creek Harbour Apartment', location: 'Dubai Creek Harbour', price: 2200000, rent: 16000, beds: 3, baths: 2, sqft: 1900, type: 'Apartment', status: 'For Sale', roi: 8.7, img: '🌊', tags: ['Creek View', 'New Build', 'Smart Home'], tokenized: false },
-];
+// ── Default listings (শুধুমাত্র খালি শুরু, user নিজে যোগ করবে) ──────────────
+const DEFAULT_LISTINGS = [];
 
 const MARKET_STATS = [
   { label: 'Avg Price / sqft', value: '$1,240', change: '+4.2%', up: true },
@@ -25,23 +16,47 @@ const STATUSES = ['For Sale','For Rent','Off Plan','Sold'];
 const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
 function buildSystemPrompt(listings) {
+  const listingText = listings.length > 0 
+    ? listings.map(p => `- ${p.title} | ${p.location} | $${p.price.toLocaleString()} | ${p.beds}BR ${p.baths}BA | ${p.sqft}sqft | ROI: ${p.roi}% | ${p.status} | Tags: ${p.tags.join(', ')}`).join('\n')
+    : 'No properties added yet. User can add properties to analyze and get recommendations.';
+
   return `You are an expert AI Real Estate Assistant specializing in Dubai and UAE property markets.
 
-Current listings on the platform:
-${listings.map(p => `- ${p.title} | ${p.location} | $${p.price.toLocaleString()} | ${p.beds}BR ${p.baths}BA | ${p.sqft}sqft | ROI: ${p.roi}% | ${p.status} | Tags: ${p.tags.join(', ')}`).join('\n')}
+**Current listings on the platform:**
+${listingText}
 
-Market data: Avg $1,240/sqft (+4.2% YoY) | Avg yield 8.7% | 4,820 transactions last 30 days
-Top areas: Dubai Marina, Downtown, Palm Jumeirah, DIFC, Business Bay
+**Market Overview:**
+- Average Price/sqft: $1,240 (+4.2% YoY)
+- Average Rental Yield: 8.7%
+- Monthly Transactions: 4,820 properties
+- Popular Areas: Dubai Marina, Downtown Dubai, Palm Jumeirah, DIFC, Business Bay, JVC
+- Investment Grade: AAA (Stable & Growing)
 
-You can:
-- Recommend properties based on budget, preferences, family size
-- Calculate ROI, mortgage payments, rental income
-- Explain Dubai real estate laws (no property tax, freehold zones, Golden Visa)
-- Compare areas and property types
-- Explain tokenized real estate (fractional blockchain ownership)
-- Give investment advice for short-term vs long-term
+**Your Capabilities:**
+1. Property Recommendations - Match buyers with ideal properties based on budget, lifestyle, and investment goals
+2. ROI & Financial Analysis - Calculate returns, mortgage payments, rental yields, and break-even timelines
+3. Legal & Regulatory Guidance - Explain Dubai real estate laws (freehold zones, no property tax, Golden Visa eligibility)
+4. Area Comparisons - Compare neighborhoods for appreciation potential, amenities, and rental demand
+5. Investment Strategies - Advise on short-term flips vs long-term rentals, off-plan vs ready properties
+6. Tokenized Real Estate - Explain fractional blockchain ownership and its benefits
 
-Be concise, data-driven, and helpful. Use AED and USD. Format numbers clearly.`;
+**Response Style:**
+- Be concise and data-driven
+- Use both AED and USD (1 USD ≈ 3.67 AED)
+- Format numbers clearly with commas
+- Provide specific examples from available listings when relevant
+- Always mention risks alongside opportunities
+- Include actionable next steps
+
+**Dubai Real Estate Quick Facts:**
+- No property tax or capital gains tax
+- Foreign ownership in freehold areas
+- Golden Visa available for properties ≥ AED 2M (~$545K)
+- Average rental yield: 5-10% (varies by area)
+- Strong rental demand from expat population
+- Off-plan properties: 10-20% cheaper, higher risk
+
+Answer questions professionally and help users make informed decisions.`;
 }
 
 async function* streamGroq(messages) {
@@ -470,17 +485,31 @@ function PropertyCard({ p, onAsk, onEdit, onDelete, onDetail }) {
 
 // ── Quick questions ───────────────────────────────────────────────────────────
 const QUICK = [
-  'Best areas to invest in Dubai?',
-  'Calculate ROI on $1M property',
+  'Best areas for investment in Dubai?',
+  'How to get Golden Visa through property?',
+  'Calculate mortgage for $1M property',
   'Explain tokenized real estate',
-  'Compare villa vs apartment',
-  'Dubai Golden Visa via property?',
-  'Best property for $500K budget?',
-  'Short-term vs long-term rental?',
-  'No property tax in Dubai?',
+  'Villa vs Apartment: Which is better?',
+  'Best property under $500K budget?',
+  'Off-plan vs Ready property pros/cons?',
+  'Rental yield expectations in Dubai?',
 ];
 
-const WELCOME = { id: 'w0', role: 'ai', time: Date.now(), text: `Hi! I'm your **AI Real Estate Advisor** for Dubai & UAE markets.\n\nI can help you find properties, calculate returns, compare areas, and explain investment strategies.\n\nBrowse listings on the left or ask me anything below.` };
+const WELCOME = { id: 'w0', role: 'ai', time: Date.now(), text: `👋 **Welcome to Quad Cell Real Estate AI!**
+
+I'm your personal real estate advisor powered by AI, specializing in Dubai and UAE property markets.
+
+**I can help you:**
+- 🏠 Find the perfect property based on your budget and preferences
+- 📊 Calculate ROI, mortgage payments, and rental yields
+- 🌍 Compare areas and neighborhoods for investment potential
+- 💰 Explain Dubai's real estate laws and Golden Visa benefits
+- ⛓ Understand tokenized real estate and fractional ownership
+
+**Get started:**
+Start by adding a property using the **➕ Add Property** button, or ask me anything about Dubai real estate below!
+
+Try asking: *"What are the best areas to invest in Dubai?"* or *"Explain Golden Visa via property purchase"*` };
 
 function msgTime(ts) { return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
 
@@ -519,6 +548,12 @@ export default function RealEstate() {
       return next;
     });
   }
+
+  // Clear localStorage on first load (run once)
+  useEffect(() => {
+    localStorage.removeItem('qc_re_listings');
+    setListingsState([]);
+  }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -643,7 +678,7 @@ export default function RealEstate() {
               <div style={{ fontSize: '0.75rem' }}>Try a different filter or <button onClick={() => { setEditTarget(null); setShowModal(true); }} style={{ background: 'none', border: 'none', color: '#22c55e', cursor: 'pointer', fontSize: '0.75rem', padding: 0, fontWeight: 600 }}>add a new property</button></div>
             </div>
           ) : (
-            filtered.map(p => <PropertyCard key={p.id} p={p} onAsk={q => ask(q)} onEdit={openEdit} onDelete={handleDelete} onDetail={setDetailTarget} />
+            filtered.map(p => <PropertyCard key={p.id} p={p} onAsk={q => ask(q)} onEdit={openEdit} onDelete={handleDelete} onDetail={setDetailTarget} />)
           )}
         </div>
       </div>
