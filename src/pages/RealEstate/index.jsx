@@ -10,8 +10,10 @@ const MARKET_STATS = [
   { label: 'Price Index',        value: '142.3', change: '-0.8%', up: false },
 ];
 
-const TYPES = ['Villa','Penthouse','Apartment','Studio','Townhouse','Office','Shop','Warehouse'];
-const STATUSES = ['For Sale','For Rent','Off Plan','Sold'];
+const TYPES = ['Villa','Penthouse','Apartment','Studio','Townhouse','Office','Shop','Warehouse','Land'];
+const STATUSES = ['For Sale','For Rent','Off Plan','Sold','Rented'];
+const AMENITIES = ['Pool','Gym','Parking','Security','Garden','Balcony','Sea View','City View','Pet Friendly','Furnished','Smart Home','Maid Room','Storage','Concierge'];
+const AREAS = ['Dubai Marina','Downtown Dubai','Palm Jumeirah','DIFC','Business Bay','JVC','JBR','Arabian Ranches','Dubai Hills','Damac Hills','Dubai Creek Harbour','Mirdif','Jumeirah','Al Barsha','Sports City'];
 
 const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
@@ -88,6 +90,86 @@ async function* streamGroq(messages) {
 }
 
 // ── Markdown renderer ─────────────────────────────────────────────────────────
+function MortgageCalculator({ price, onClose }) {
+  const [downPayment, setDownPayment] = useState(20);
+  const [loanTerm, setLoanTerm] = useState(20);
+  const [interestRate, setInterestRate] = useState(6.0);
+  
+  const loanAmount = price * (1 - downPayment / 100);
+  const monthlyRate = interestRate / 100 / 12;
+  const numPayments = loanTerm * 12;
+  const monthlyPayment = loanAmount * (monthlyRate * Math.pow(1 + monthlyRate, numPayments)) / (Math.pow(1 + monthlyRate, numPayments) - 1);
+  const totalPaid = monthlyPayment * numPayments;
+  const totalInterest = totalPaid - loanAmount;
+
+  const inputStyle = { width: '100%', background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 6, padding: '0.4rem', color: '#e5e7eb', fontSize: '0.75rem' };
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: '#111', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, width: '100%', maxWidth: 480, boxShadow: '0 20px 60px rgba(0,0,0,0.8)' }}>
+        <div style={{ padding: '0.9rem 1.1rem', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#e8e0d0' }}>🏦 Mortgage Calculator</div>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: '1.1rem', cursor: 'pointer' }}>✕</button>
+        </div>
+
+        <div style={{ padding: '1.1rem' }}>
+          <div style={{ background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.2)', borderRadius: 10, padding: '0.8rem', marginBottom: '1rem', textAlign: 'center' }}>
+            <div style={{ fontSize: '0.7rem', color: '#6b7280', marginBottom: '0.2rem' }}>Monthly Payment</div>
+            <div style={{ fontSize: '1.8rem', fontWeight: 900, color: '#22c55e' }}>${Math.round(monthlyPayment).toLocaleString()}</div>
+            <div style={{ fontSize: '0.68rem', color: '#9ca3af', marginTop: '0.2rem' }}>for {loanTerm} years at {interestRate}% APR</div>
+          </div>
+
+          <div style={{ marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+              <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontWeight: 600 }}>Property Price</span>
+              <span style={{ fontSize: '0.78rem', color: '#e8e0d0', fontWeight: 700 }}>${price.toLocaleString()}</span>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: '0.7rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+              <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontWeight: 600 }}>Down Payment</span>
+              <span style={{ fontSize: '0.78rem', color: '#e8e0d0', fontWeight: 700 }}>{downPayment}% (${Math.round(price * downPayment / 100).toLocaleString()})</span>
+            </div>
+            <input type="range" min="5" max="50" step="5" value={downPayment} onChange={e => setDownPayment(Number(e.target.value))} style={{ width: '100%' }} />
+          </div>
+
+          <div style={{ marginBottom: '0.7rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+              <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontWeight: 600 }}>Loan Term</span>
+              <span style={{ fontSize: '0.78rem', color: '#e8e0d0', fontWeight: 700 }}>{loanTerm} years</span>
+            </div>
+            <input type="range" min="5" max="30" step="5" value={loanTerm} onChange={e => setLoanTerm(Number(e.target.value))} style={{ width: '100%' }} />
+          </div>
+
+          <div style={{ marginBottom: '0.85rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+              <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontWeight: 600 }}>Interest Rate</span>
+              <span style={{ fontSize: '0.78rem', color: '#e8e0d0', fontWeight: 700 }}>{interestRate.toFixed(1)}% APR</span>
+            </div>
+            <input type="range" min="2" max="12" step="0.5" value={interestRate} onChange={e => setInterestRate(Number(e.target.value))} style={{ width: '100%' }} />
+          </div>
+
+          <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: 8, padding: '0.7rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            {[
+              ['Loan Amount', `$${Math.round(loanAmount).toLocaleString()}`],
+              ['Total Interest', `$${Math.round(totalInterest).toLocaleString()}`],
+              ['Total Paid', `$${Math.round(totalPaid).toLocaleString()}`],
+              ['Monthly Payment', `$${Math.round(monthlyPayment).toLocaleString()}`],
+            ].map(([k, v]) => (
+              <div key={k} style={{ padding: '0.3rem' }}>
+                <div style={{ fontSize: '0.65rem', color: '#6b7280' }}>{k}</div>
+                <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#e8e0d0', marginTop: '0.1rem' }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MsgContent({ text }) {
   return (
     <div style={{ fontSize: '0.83rem', lineHeight: 1.7, color: '#c9c9c9', wordBreak: 'break-word' }}>
@@ -111,7 +193,27 @@ function Inline({ text }) {
 }
 
 // ── Add / Edit Property Modal ─────────────────────────────────────────────────
-const EMPTY_FORM = { title: '', location: '', price: '', rent: '', beds: '1', baths: '1', sqft: '', type: 'Apartment', status: 'For Sale', roi: '', img: null, tags: '', tokenized: false };
+const EMPTY_FORM = { 
+  title: '', 
+  location: '', 
+  price: '', 
+  rent: '', 
+  beds: '1', 
+  baths: '1', 
+  sqft: '', 
+  type: 'Apartment', 
+  status: 'For Sale', 
+  roi: '', 
+  img: null, 
+  tags: '', 
+  tokenized: false,
+  virtualTour: '',
+  yearBuilt: new Date().getFullYear().toString(),
+  amenities: [],
+  description: '',
+  parkingSpots: '1',
+  furnished: 'Unfurnished'
+};
 
 function PropertyModal({ initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || EMPTY_FORM);
@@ -146,7 +248,13 @@ function PropertyModal({ initial, onSave, onClose }) {
       baths: parseInt(form.baths) || 1,
       sqft: parseInt(form.sqft) || 0,
       roi: parseFloat(form.roi) || 0,
+      parkingSpots: parseInt(form.parkingSpots) || 0,
+      yearBuilt: parseInt(form.yearBuilt) || new Date().getFullYear(),
       tags: typeof form.tags === 'string' ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : form.tags,
+      amenities: form.amenities || [],
+      virtualTour: form.virtualTour || '',
+      description: form.description || '',
+      furnished: form.furnished || 'Unfurnished',
     });
   }
 
@@ -260,6 +368,65 @@ function PropertyModal({ initial, onSave, onClose }) {
             <input style={inputStyle} value={typeof form.tags === 'string' ? form.tags : form.tags.join(', ')} onChange={e => set('tags', e.target.value)} placeholder="Sea View, Pool, Gym, Smart Home" />
           </div>
 
+          {/* Year Built & Parking & Furnished */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+            <div>
+              <label style={labelStyle}>Year Built</label>
+              <input style={inputStyle} type="number" value={form.yearBuilt} onChange={e => set('yearBuilt', e.target.value)} placeholder="2023" />
+            </div>
+            <div>
+              <label style={labelStyle}>Parking Spots</label>
+              <input style={inputStyle} type="number" value={form.parkingSpots} onChange={e => set('parkingSpots', e.target.value)} placeholder="1" />
+            </div>
+            <div>
+              <label style={labelStyle}>Furnished</label>
+              <select value={form.furnished} onChange={e => set('furnished', e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+                <option value="Unfurnished">Unfurnished</option>
+                <option value="Semi-Furnished">Semi-Furnished</option>
+                <option value="Fully-Furnished">Fully-Furnished</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Virtual Tour URL */}
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label style={labelStyle}>Virtual Tour URL (optional)</label>
+            <input style={inputStyle} type="url" value={form.virtualTour} onChange={e => set('virtualTour', e.target.value)} placeholder="https://tour.example.com/property-123" />
+          </div>
+
+          {/* Description */}
+          <div style={{ marginBottom: '0.75rem' }}>
+            <label style={labelStyle}>Description (optional)</label>
+            <textarea style={{ ...inputStyle, minHeight: 80, resize: 'vertical' }} value={form.description} onChange={e => set('description', e.target.value)} placeholder="Describe the property, its features, nearby amenities, etc." />
+          </div>
+
+          {/* Amenities (multi-select checkboxes) */}
+          <div style={{ marginBottom: '0.85rem' }}>
+            <label style={labelStyle}>Amenities</label>
+            <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 10, padding: '0.75rem', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', maxHeight: 180, overflowY: 'auto' }}>
+              {AMENITIES.map(amenity => {
+                const checked = (form.amenities || []).includes(amenity);
+                return (
+                  <label key={amenity} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.75rem', color: '#9ca3af' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={checked}
+                      onChange={e => {
+                        const current = form.amenities || [];
+                        set('amenities', e.target.checked 
+                          ? [...current, amenity] 
+                          : current.filter(a => a !== amenity)
+                        );
+                      }}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span>{amenity}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+
           {/* Tokenized toggle */}
           <div style={{ marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.85rem', background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.15)', borderRadius: 10 }}>
             <button onClick={() => set('tokenized', !form.tokenized)} style={{ width: 40, height: 22, borderRadius: 100, background: form.tokenized ? '#a855f7' : '#374151', border: 'none', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
@@ -288,6 +455,7 @@ function PropertyModal({ initial, onSave, onClose }) {
 
 // ── Property Detail Modal ─────────────────────────────────────────────────────
 function PropertyDetail({ p, onClose, onEdit, onDelete, onAsk }) {
+  const [showMortgage, setShowMortgage] = useState(false);
   const isPhoto = p.img && p.img.startsWith('data:');
   const annualRent = p.rent * 12;
   const grossYield = p.price ? ((annualRent / p.price) * 100).toFixed(2) : 0;
@@ -386,8 +554,47 @@ function PropertyDetail({ p, onClose, onEdit, onDelete, onAsk }) {
             </div>
           )}
 
+          {/* Amenities */}
+          {p.amenities?.length > 0 && (
+            <div style={{ marginBottom: '1rem' }}>
+              <div style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>Amenities</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.35rem' }}>
+                {p.amenities.map(a => (
+                  <div key={a} style={{ background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 8, padding: '0.3rem 0.5rem', fontSize: '0.7rem', color: '#60a5fa', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                    <span style={{ color: '#60a5fa' }}>✓</span>{a}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Additional Info */}
+          <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: 10, padding: '0.75rem 0.9rem', marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Property Details</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.4rem', fontSize: '0.75rem' }}>
+              {p.yearBuilt && <div style={{ color: '#9ca3af' }}>🏗 Built: <span style={{ color: '#e8e0d0', fontWeight: 600 }}>{p.yearBuilt}</span></div>}
+              {p.parkingSpots && <div style={{ color: '#9ca3af' }}>🚗 Parking: <span style={{ color: '#e8e0d0', fontWeight: 600 }}>{p.parkingSpots} spot{p.parkingSpots > 1 ? 's' : ''}</span></div>}
+              {p.furnished && <div style={{ color: '#9ca3af' }}>🛋 {p.furnished}</div>}
+              {p.virtualTour && (
+                <div style={{ gridColumn: '1/-1' }}>
+                  <a href={p.virtualTour} target="_blank" rel="noopener noreferrer" style={{ color: '#60a5fa', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.75rem', fontWeight: 600 }}>
+                    🌐 Virtual Tour →
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Description */}
+          {p.description && (
+            <div style={{ marginBottom: '1rem', padding: '0.75rem 0.9rem', background: 'rgba(255,255,255,0.015)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 10 }}>
+              <div style={{ fontSize: '0.68rem', color: '#6b7280', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.4rem' }}>Description</div>
+              <p style={{ margin: 0, fontSize: '0.78rem', lineHeight: 1.6, color: '#c9c9c9' }}>{p.description}</p>
+            </div>
+          )}
+
           {/* Action buttons */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
             <button onClick={() => { onAsk(`Tell me everything about ${p.title} in ${p.location}. Price $${p.price.toLocaleString()}, ROI ${p.roi}%, ${p.beds}BR. Is it a good investment?`); onClose(); }}
               style={{ flex: 2, background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 10, padding: '0.65rem', color: '#22c55e', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}
               onMouseEnter={e => e.currentTarget.style.background='rgba(34,197,94,0.18)'}
@@ -403,8 +610,18 @@ function PropertyDetail({ p, onClose, onEdit, onDelete, onAsk }) {
               🗑
             </button>
           </div>
+
+          {/* Mortgage Calculator Button */}
+          <button onClick={() => setShowMortgage(true)}
+            style={{ width: '100%', background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: 10, padding: '0.65rem', color: '#60a5fa', fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.background='rgba(59,130,246,0.18)'}
+            onMouseLeave={e => e.currentTarget.style.background='rgba(59,130,246,0.1)'}>
+            🏦 Calculate Mortgage
+          </button>
         </div>
       </div>
+
+      {showMortgage && <MortgageCalculator price={p.price} onClose={() => setShowMortgage(false)} />}
     </div>
   );
 }
@@ -549,12 +766,6 @@ export default function RealEstate() {
     });
   }
 
-  // Clear localStorage on first load (run once)
-  useEffect(() => {
-    localStorage.removeItem('qc_re_listings');
-    setListingsState([]);
-  }, []);
-
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
   function handleSave(p) {
@@ -573,8 +784,56 @@ export default function RealEstate() {
     }
   }
 
+  // Export properties to JSON file
+  function handleExport() {
+    const dataStr = JSON.stringify(listings, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `quad-cell-properties-${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // Import properties from JSON file
+  function handleImport() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'application/json';
+    input.onchange = e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = event => {
+        try {
+          const imported = JSON.parse(event.target.result);
+          if (Array.isArray(imported)) {
+            setListings(imported);
+            alert(`✅ Successfully imported ${imported.length} properties`);
+          } else {
+            alert('❌ Invalid file format');
+          }
+        } catch (err) {
+          alert('❌ Error reading file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    };
+    input.click();
+  }
+
   function openEdit(p) {
-    setEditTarget({ ...p, tags: p.tags.join(', ') });
+    setEditTarget({ 
+      ...p, 
+      tags: Array.isArray(p.tags) ? p.tags.join(', ') : p.tags,
+      amenities: p.amenities || [],
+      virtualTour: p.virtualTour || '',
+      yearBuilt: p.yearBuilt || new Date().getFullYear(),
+      parkingSpots: p.parkingSpots || 1,
+      furnished: p.furnished || 'Unfurnished',
+      description: p.description || '',
+    });
     setShowModal(true);
   }
 
@@ -627,6 +886,19 @@ export default function RealEstate() {
               <div style={{ fontSize: '0.65rem', color: '#22c55e', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                 <span style={{ width: 5, height: 5, borderRadius: '50%', background: '#22c55e', display: 'inline-block' }} />Live
               </div>
+              {/* Export/Import buttons */}
+              <button onClick={handleExport} disabled={listings.length === 0} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(59,130,246,0.08)', border: '1px solid rgba(59,130,246,0.2)', borderRadius: 7, padding: '0.3rem 0.6rem', fontSize: '0.68rem', color: '#60a5fa', fontWeight: 600, cursor: listings.length === 0 ? 'default' : 'pointer', opacity: listings.length === 0 ? 0.4 : 1, transition: 'all 0.15s' }}
+                onMouseEnter={e => { if (listings.length > 0) e.currentTarget.style.background='rgba(59,130,246,0.15)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(59,130,246,0.08)'; }}
+                title="Export properties to JSON file">
+                📤 Export
+              </button>
+              <button onClick={handleImport} style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', background: 'rgba(168,85,247,0.08)', border: '1px solid rgba(168,85,247,0.2)', borderRadius: 7, padding: '0.3rem 0.6rem', fontSize: '0.68rem', color: '#c084fc', fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s' }}
+                onMouseEnter={e => { e.currentTarget.style.background='rgba(168,85,247,0.15)'; }}
+                onMouseLeave={e => { e.currentTarget.style.background='rgba(168,85,247,0.08)'; }}
+                title="Import properties from JSON file">
+                📥 Import
+              </button>
               {/* ➕ Add button */}
               <button onClick={() => { setEditTarget(null); setShowModal(true); }} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(34,197,94,0.1)', border: '1px solid rgba(34,197,94,0.3)', borderRadius: 8, padding: '0.4rem 0.85rem', fontSize: '0.75rem', color: '#22c55e', fontWeight: 700, cursor: 'pointer', transition: 'all 0.15s' }}
                 onMouseEnter={e => { e.currentTarget.style.background='rgba(34,197,94,0.18)'; }}
