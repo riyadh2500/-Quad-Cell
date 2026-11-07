@@ -19,7 +19,6 @@ const MARKET_STATS = [
   { label: 'Price Index',        value: '142.3', change: '-0.8%', up: false },
 ];
 
-const PROPERTY_EMOJIS = ['🏠','🏡','🏢','🏣','🏤','🏥','🏦','🏧','🏨','🏩','🏪','🏫','🏬','🏭','🏯','🏰','🗼','🌴','🌊','🏙','🏘','🏗','🏛','🏟'];
 const TYPES = ['Villa','Penthouse','Apartment','Studio','Townhouse','Office','Shop','Warehouse'];
 const STATUSES = ['For Sale','For Rent','Off Plan','Sold'];
 
@@ -97,13 +96,29 @@ function Inline({ text }) {
 }
 
 // ── Add / Edit Property Modal ─────────────────────────────────────────────────
-const EMPTY_FORM = { title: '', location: '', price: '', rent: '', beds: '1', baths: '1', sqft: '', type: 'Apartment', status: 'For Sale', roi: '', img: '🏠', tags: '', tokenized: false };
+const EMPTY_FORM = { title: '', location: '', price: '', rent: '', beds: '1', baths: '1', sqft: '', type: 'Apartment', status: 'For Sale', roi: '', img: null, tags: '', tokenized: false };
 
 function PropertyModal({ initial, onSave, onClose }) {
   const [form, setForm] = useState(initial || EMPTY_FORM);
+  const [dragOver, setDragOver] = useState(false);
+  const fileInputRef = useRef(null);
   const isEdit = !!initial;
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  // Convert uploaded file to base64 data URL
+  function handleImageFile(file) {
+    if (!file || !file.type.startsWith('image/')) return;
+    const reader = new FileReader();
+    reader.onload = e => set('img', e.target.result);
+    reader.readAsDataURL(file);
+  }
+
+  function handleDrop(e) {
+    e.preventDefault(); setDragOver(false);
+    const file = e.dataTransfer.files[0];
+    handleImageFile(file);
+  }
 
   function handleSave() {
     if (!form.title.trim() || !form.location.trim() || !form.price) return;
@@ -136,14 +151,42 @@ function PropertyModal({ initial, onSave, onClose }) {
         </div>
 
         <div style={{ padding: '1.25rem' }}>
-          {/* Emoji picker */}
-          <div style={{ marginBottom: '0.75rem' }}>
-            <label style={labelStyle}>Property Icon</label>
-            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-              {PROPERTY_EMOJIS.map(e => (
-                <button key={e} onClick={() => set('img', e)} style={{ width: 36, height: 36, borderRadius: 8, border: `2px solid ${form.img === e ? '#22c55e' : 'rgba(255,255,255,0.08)'}`, background: form.img === e ? 'rgba(34,197,94,0.1)' : 'rgba(255,255,255,0.03)', fontSize: '1.1rem', cursor: 'pointer', transition: 'all 0.1s' }}>{e}</button>
-              ))}
-            </div>
+          {/* Image upload */}
+          <div style={{ marginBottom: '0.85rem' }}>
+            <label style={labelStyle}>Property Photo</label>
+            <input ref={fileInputRef} type="file" accept="image/*" style={{ display: 'none' }}
+              onChange={e => handleImageFile(e.target.files[0])} />
+
+            {form.img ? (
+              /* Preview */
+              <div style={{ position: 'relative', borderRadius: 10, overflow: 'hidden', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <img src={form.img} alt="preview" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0)', transition: 'background 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.background='rgba(0,0,0,0.45)'}
+                  onMouseLeave={e => e.currentTarget.style.background='rgba(0,0,0,0)'}>
+                  <div style={{ position: 'absolute', bottom: 8, right: 8, display: 'flex', gap: '0.4rem' }}>
+                    <button onClick={() => fileInputRef.current?.click()} style={{ background: 'rgba(0,0,0,0.75)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 7, padding: '0.3rem 0.7rem', color: '#e8e0d0', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}>
+                      🔄 Change
+                    </button>
+                    <button onClick={() => set('img', null)} style={{ background: 'rgba(239,68,68,0.8)', border: 'none', borderRadius: 7, padding: '0.3rem 0.7rem', color: '#fff', fontSize: '0.72rem', cursor: 'pointer', fontWeight: 600 }}>
+                      🗑 Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* Drop zone */
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                style={{ border: `2px dashed ${dragOver ? '#22c55e' : 'rgba(255,255,255,0.12)'}`, borderRadius: 10, padding: '1.75rem 1rem', textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s', background: dragOver ? 'rgba(34,197,94,0.05)' : 'rgba(255,255,255,0.02)' }}>
+                <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📸</div>
+                <div style={{ fontSize: '0.82rem', fontWeight: 600, color: '#9ca3af', marginBottom: '0.25rem' }}>Click to upload or drag & drop</div>
+                <div style={{ fontSize: '0.7rem', color: '#4b5563' }}>JPG, PNG, WEBP — any size</div>
+              </div>
+            )}
           </div>
 
           {/* Title */}
@@ -238,8 +281,12 @@ function PropertyCard({ p, onAsk, onEdit, onDelete }) {
       style={{ background: hovered ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.02)', border: `1px solid ${hovered ? 'rgba(255,255,255,0.15)' : 'rgba(255,255,255,0.07)'}`, borderRadius: 14, overflow: 'hidden', transition: 'all 0.18s', position: 'relative' }}>
 
       {/* Image area */}
-      <div style={{ height: 96, background: 'linear-gradient(135deg, #1a1a2e, #16213e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.8rem', position: 'relative' }}>
-        {p.img}
+      <div style={{ height: 96, background: 'linear-gradient(135deg, #1a1a2e, #16213e)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '2.8rem', position: 'relative', overflow: 'hidden' }}>
+        {p.img && p.img.startsWith('data:') ? (
+          <img src={p.img} alt={p.title} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+        ) : (
+          <span style={{ fontSize: '2.8rem' }}>{p.img || '🏠'}</span>
+        )}
         <div style={{ position: 'absolute', top: 7, left: 9, display: 'flex', gap: 4 }}>
           <span style={{ background: p.status === 'For Sale' ? 'rgba(34,197,94,0.2)' : p.status === 'For Rent' ? 'rgba(59,130,246,0.2)' : p.status === 'Off Plan' ? 'rgba(251,191,36,0.2)' : 'rgba(107,114,128,0.2)', border: `1px solid ${p.status === 'For Sale' ? 'rgba(34,197,94,0.4)' : p.status === 'For Rent' ? 'rgba(59,130,246,0.4)' : p.status === 'Off Plan' ? 'rgba(251,191,36,0.4)' : 'rgba(107,114,128,0.4)'}`, color: p.status === 'For Sale' ? '#22c55e' : p.status === 'For Rent' ? '#60a5fa' : p.status === 'Off Plan' ? '#fbbf24' : '#9ca3af', fontSize: '0.6rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: 100 }}>{p.status}</span>
           {p.tokenized && <span style={{ background: 'rgba(168,85,247,0.2)', border: '1px solid rgba(168,85,247,0.4)', color: '#c084fc', fontSize: '0.6rem', fontWeight: 700, padding: '0.12rem 0.45rem', borderRadius: 100 }}>⛓</span>}
