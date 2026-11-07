@@ -12,9 +12,6 @@ import AIPayments from './pages/AIPayments/index.jsx';
 import AIAgents from './pages/AIAgents/index.jsx';
 import RealEstate from './pages/RealEstate/index.jsx';
 import AssistantPage from './pages/Assistant/index.jsx';
-import Playground from './pages/Ecosystem/Playground.jsx';
-import Applications from './pages/Ecosystem/Applications.jsx';
-import Developers from './pages/Ecosystem/Developers.jsx';
 
 export default function App() {
   return (
@@ -30,9 +27,6 @@ export default function App() {
               <Route path="agents" element={<AIAgents />} />
               <Route path="realestate" element={<RealEstate />} />
               <Route path="assistant" element={<AssistantPage />} />
-              <Route path="ecosystem/playground" element={<Playground />} />
-              <Route path="ecosystem/apps" element={<Applications />} />
-              <Route path="ecosystem/developers" element={<Developers />} />
             </Route>
           </Routes>
         </HashRouter>

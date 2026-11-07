@@ -15,11 +15,6 @@ const NAV = [
     { label: 'AI Real Estate', icon: '🏡', path: '/realestate' },
     { label: 'AI Assistant',   icon: '🧠', path: '/assistant' },
   ]},
-  { group: 'Ecosystem', items: [
-    { label: 'Playground', icon: '🧪', path: '/ecosystem/playground' },
-    { label: 'Applications', icon: '🗂️', path: '/ecosystem/apps' },
-    { label: 'Developers', icon: '⌨️', path: '/ecosystem/developers' },
-  ]},
 ];
 
 export default function Sidebar() {
