@@ -1,9 +1,66 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
-const SYSTEM_PROMPT = `You are the Quad Cell AI Assistant — a fast, intelligent assistant built into the Quad Cell DeFi platform. You run on Groq's LPU inference engine (qwen/qwen3.8-27b), giving you near-instant responses.
+// ── Live price fetcher from CoinGecko (free, no key needed) ──────────────────
+const COINS = [
+  { id: 'bitcoin',        sym: 'BTC'  },
+  { id: 'ethereum',       sym: 'ETH'  },
+  { id: 'solana',         sym: 'SOL'  },
+  { id: 'matic-network',  sym: 'MATIC'},
+  { id: 'arbitrum',       sym: 'ARB'  },
+  { id: 'binancecoin',    sym: 'BNB'  },
+  { id: 'tether',         sym: 'USDT' },
+  { id: 'usd-coin',       sym: 'USDC' },
+  { id: 'ripple',         sym: 'XRP'  },
+  { id: 'dogecoin',       sym: 'DOGE' },
+  { id: 'cardano',        sym: 'ADA'  },
+  { id: 'avalanche-2',    sym: 'AVAX' },
+];
+
+async function fetchLivePrices() {
+  try {
+    const ids = COINS.map(c => c.id).join(',');
+    const res = await fetch(
+      `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=usd&include_24hr_change=true&include_market_cap=true`,
+      { signal: AbortSignal.timeout(6000) }
+    );
+    if (!res.ok) throw new Error('CoinGecko error');
+    const data = await res.json();
+    return COINS.map(c => {
+      const d = data[c.id];
+      return d
+        ? { sym: c.sym, price: d.usd, change24h: d.usd_24h_change?.toFixed(2), mcap: d.usd_market_cap }
+        : null;
+    }).filter(Boolean);
+  } catch {
+    return null;  // silently fail — static prompt still works
+  }
+}
+
+function buildSystemPrompt(prices) {
+  const now = new Date();
+  const timeStr = now.toLocaleString('en-US', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit', timeZoneName: 'short',
+  });
+
+  const priceBlock = prices
+    ? `\n═══ LIVE CRYPTO PRICES (fetched ${now.toLocaleTimeString()}) ═══\n` +
+      prices.map(p =>
+        `${p.sym}: $${Number(p.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: p.price > 1 ? 2 : 6 })}` +
+        (p.change24h ? ` (${Number(p.change24h) >= 0 ? '+' : ''}${p.change24h}% 24h)` : '')
+      ).join('\n') +
+      `\n\nThese are real-time prices. Use them when users ask about current crypto prices. Do NOT say you lack access to real-time data.`
+    : `\n(Live prices unavailable at this moment — CoinGecko may be rate-limiting.)`;
+
+  return `You are the Quad Cell AI Assistant — a fast, intelligent assistant built into the Quad Cell DeFi platform.
+
+CURRENT DATE & TIME: ${timeStr}
+${priceBlock}
 
 You can answer ANY question like a normal AI (coding, math, writing, science, history, etc.).
 You also have deep knowledge of Quad Cell and its features.
+
+IMPORTANT: You DO have access to real-time crypto prices (listed above). When asked for current prices, quote them directly. Always mention the 24h change when available.
 
 ═══ QUAD CELL PLATFORM KNOWLEDGE ═══
 
@@ -30,26 +87,12 @@ AI PAYMENT AGENT:
 - Real ERC-20 USDT transfer on Sepolia. Zero fees via Rialo Cruise
 - Supports: send, swap, schedule (daily/weekly/monthly)
 
-AI AGENTS:
-- DCA Bot Alpha: buys $50 BTC every Monday 9am UTC
-- Yield Optimizer: moves funds to highest APY protocol
-- Liquidation Guard: adds collateral when perp liquidation risk >80%
-- News Sentiment Trader: trades when sentiment score >0.75
-
 AI REAL ESTATE:
 - Browse Dubai & UAE property listings
 - Filter by type: Villa, Penthouse, Apartment, Studio, Townhouse
 - Each listing shows price, ROI %, rental yield, beds/baths, sqft
 - Tokenized properties support fractional blockchain ownership
 - AI advisor answers questions about Dubai property investment
-
-RIALO INFRASTRUCTURE:
-- Rialo Edge: sub-50ms routing, confidential on-chain execution
-- Rialo IPC: cross-chain messaging without bridges
-- Rialo Stream: real-time oracle feeds
-- Rialo Workflow: declarative multi-step DeFi automation
-- Reactive Transactions: event-driven auto-execution
-- Rialo Interop: zero-fee cross-chain asset movement
 
 WALLET:
 - Supports MetaMask, Coinbase Wallet, any EIP-1193 browser extension
@@ -59,6 +102,7 @@ WALLET:
 FEES: All operations are $0.00 via Rialo infrastructure.
 
 Be concise, helpful, and direct. Use markdown formatting when it helps readability.`;
+}
 
 const GROQ_KEY = import.meta.env.VITE_GROQ_API_KEY;
 
@@ -182,13 +226,15 @@ function Inline({ text }) {
 
 const QUICK = [
   'What is Quad Cell?',
+  'crypto price',
+  'BTC price today',
+  'ETH vs BTC which is better?',
   'How do I trade on the Perp DEX?',
   'How do Prediction Markets work?',
   'How do I send USDT?',
-  'What AI agents are available?',
-  'Tell me about Rialo infrastructure',
   'Explain DeFi in simple terms',
   'What is a perpetual future?',
+  'Dubai property investment?',
   'How do I get started?',
 ];
 
@@ -206,9 +252,24 @@ export default function AssistantPage() {
   const [input,     setInput]     = useState('');
   const [streaming, setStreaming] = useState(false);
   const [error,     setError]     = useState(null);
+  const [prices,    setPrices]    = useState(null);          // live prices
+  const [priceAge,  setPriceAge]  = useState(null);          // timestamp of last fetch
+  const [priceErr,  setPriceErr]  = useState(false);
   const bottomRef  = useRef(null);
   const inputRef   = useRef(null);
   const historyRef = useRef([]);
+
+  // Fetch prices on mount + every 60 seconds
+  useEffect(() => {
+    async function load() {
+      const data = await fetchLivePrices();
+      if (data) { setPrices(data); setPriceAge(Date.now()); setPriceErr(false); }
+      else setPriceErr(true);
+    }
+    load();
+    const interval = setInterval(load, 60_000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
@@ -222,7 +283,7 @@ export default function AssistantPage() {
     setMessages(m => [...m, { id: `u${Date.now()}`, role: 'user', text: query, time: Date.now() }]);
     historyRef.current.push({ role: 'user', content: query });
 
-    const msgs = [{ role: 'system', content: SYSTEM_PROMPT }, ...historyRef.current.slice(-24)];
+    const msgs = [{ role: 'system', content: buildSystemPrompt(prices) }, ...historyRef.current.slice(-24)];
     const aiId = `a${Date.now()}`;
     setMessages(m => [...m, { id: aiId, role: 'ai', text: '', time: Date.now(), streaming: true }]);
     setStreaming(true);
@@ -264,11 +325,43 @@ export default function AssistantPage() {
             {streaming ? 'Thinking…' : 'Online · Ask me anything'}
           </div>
         </div>
-        <div style={{ fontSize: '0.68rem', color: '#374151', fontFamily: 'monospace', display: 'flex', gap: '0.5rem' }}>
+        <div style={{ fontSize: '0.68rem', color: '#374151', fontFamily: 'monospace', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          {/* Live price status pill */}
+          <span style={{
+            background: prices ? 'rgba(34,197,94,0.1)' : priceErr ? 'rgba(239,68,68,0.1)' : 'rgba(245,158,11,0.1)',
+            border: `1px solid ${prices ? 'rgba(34,197,94,0.3)' : priceErr ? 'rgba(239,68,68,0.3)' : 'rgba(245,158,11,0.3)'}`,
+            color: prices ? '#22c55e' : priceErr ? '#f87171' : '#f59e0b',
+            borderRadius: 100, padding: '0.18rem 0.6rem', fontSize: '0.65rem', fontWeight: 600, fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: '0.3rem'
+          }}>
+            <span style={{ width: 5, height: 5, borderRadius: '50%', background: 'currentColor', display: 'inline-block', animation: prices ? 'blink 2s infinite' : 'none' }} />
+            {prices ? `Live · ${new Date(priceAge).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : priceErr ? 'Prices offline' : 'Loading…'}
+          </span>
           <span style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '0.15rem 0.45rem' }}>Qwen 27B</span>
           <span style={{ background: '#1a1a1a', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 4, padding: '0.15rem 0.45rem' }}>Groq LPU</span>
         </div>
       </div>
+
+      {/* Live price ticker strip */}
+      {prices && (
+        <div style={{ background: '#0d0d0d', borderBottom: '1px solid rgba(255,255,255,0.05)', padding: '0.28rem 1.25rem', display: 'flex', gap: '1.2rem', overflowX: 'auto', scrollbarWidth: 'none', flexShrink: 0 }}>
+          {prices.map(p => {
+            const up = Number(p.change24h) >= 0;
+            return (
+              <div key={p.sym} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0 }}>
+                <span style={{ fontSize: '0.67rem', fontWeight: 700, color: '#9ca3af', fontFamily: 'monospace' }}>{p.sym}</span>
+                <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#e8e0d0', fontFamily: 'monospace' }}>
+                  ${Number(p.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: p.price > 1 ? 2 : 6 })}
+                </span>
+                {p.change24h && (
+                  <span style={{ fontSize: '0.62rem', fontWeight: 700, color: up ? '#22c55e' : '#ef4444' }}>
+                    {up ? '▲' : '▼'}{Math.abs(p.change24h)}%
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem 0.5rem', display: 'flex', flexDirection: 'column', gap: '0.35rem', scrollbarWidth: 'thin', scrollbarColor: '#1f2937 transparent' }}>
